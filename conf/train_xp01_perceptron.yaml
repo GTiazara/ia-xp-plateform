@@ -1,0 +1,24 @@
+# Configuration principale de l'XP-01 : un perceptron apprend à décider
+# s'il faut accélérer ou non, à partir de 4 entrées (distance à l'obstacle,
+# présence d'un obstacle, position de la voiture, vitesse).
+#
+# Voir docs/xp-01-perceptron-conduite.md pour le contexte pédagogique complet
+# et conf/README.md pour la logique de composition de cette configuration.
+defaults:
+  - datamodule: car_driving
+  - task: binary_perceptron
+  - callbacks: default
+  - logger: tb
+  - trainer: default
+  - paths: default
+  - hydra: default
+  - _self_
+
+mode: train # train | test | predict
+seed: 42
+
+task_name: "${now:%Y-%m-%d}_${now:%H-%M-%S}-xp01-perceptron-conduite"
+
+optimization_metric: loss/val
+mode_metric: min
+ignore_warnings: True

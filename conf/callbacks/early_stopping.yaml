@@ -1,0 +1,7 @@
+early_stopping:
+  _target_: pytorch_lightning.callbacks.EarlyStopping
+  monitor: ${optimization_metric} # quantité surveillée, doit être loggée
+  min_delta: 1.0e-4 # variation minimale considérée comme une amélioration
+  patience: 10 # nombre de validations sans amélioration avant arrêt
+  verbose: False
+  mode: ${mode_metric}

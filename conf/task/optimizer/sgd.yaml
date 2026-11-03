@@ -1,0 +1,6 @@
+# Optimiseur instancié "partiellement" par Hydra : seuls les paramètres du
+# modèle manquent, ils sont fournis dans BinaryDecisionModule.configure_optimizers.
+_target_: torch.optim.SGD
+_partial_: true
+lr: 0.1
+momentum: 0.0

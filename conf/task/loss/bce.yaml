@@ -1,0 +1,3 @@
+# Binary Cross-Entropy appliquée directement sur les logits (plus stable
+# numériquement qu'un sigmoid suivi d'un BCELoss classique).
+_target_: torch.nn.BCEWithLogitsLoss

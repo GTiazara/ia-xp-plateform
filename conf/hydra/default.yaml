@@ -1,0 +1,10 @@
+defaults:
+  - override job_logging: colorlog
+  - override hydra_logging: colorlog
+
+# Dossier de sortie généré dynamiquement à chaque run.
+run:
+  dir: ${paths.log_dir}/runs/${now:%Y-%m-%d}_${now:%H-%M-%S}
+
+sweep:
+  dir: ${paths.log_dir}/multirun/${now:%Y-%m-%d}_${now:%H-%M-%S}

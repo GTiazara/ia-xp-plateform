@@ -1,0 +1,3 @@
+# Modèle de l'XP-01 : un perceptron à une seule couche (4 entrées -> 1 sortie).
+_target_: xp.train.models.perceptron.Perceptron
+in_features: 4

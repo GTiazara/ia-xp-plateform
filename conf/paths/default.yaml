@@ -1,0 +1,12 @@
+# Dossier de logs/checkpoints. Peut être surchargé via la variable
+# d'environnement LOG_DIR (voir .env.dist) ; vaut "./logs" par défaut, ce
+# qui permet de lancer l'XP-01 sans aucune configuration préalable.
+log_dir: ${oc.env:LOG_DIR,./logs}
+
+# Checkpoint à charger pour un mode "test" ou "predict".
+checkpoint_path: null
+
+# Checkpoint pour reprendre un entraînement interrompu (poids + optimiseur +
+# epoch + scheduler). Laissé à null par défaut pour ne jamais reprendre
+# silencieusement un entraînement précédent.
+resume_checkpoint_path: null
