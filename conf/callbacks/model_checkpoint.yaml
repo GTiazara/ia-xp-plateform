@@ -1,7 +1,0 @@
-model_checkpoint:
-  _target_: pytorch_lightning.callbacks.ModelCheckpoint
-  monitor: ${optimization_metric}
-  filename: "{epoch}"
-  save_top_k: 1
-  mode: ${mode_metric}
-  save_last: True

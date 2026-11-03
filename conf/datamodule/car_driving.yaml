@@ -1,9 +1,0 @@
-# Jeu de données synthétique "voiture virtuelle" de l'XP-01.
-_target_: xp.train.data.datamodule.CarDrivingDataModule
-n_samples: 2000
-val_split: 0.2
-test_split: 0.1
-batch_size: 32
-num_workers: 0
-seed: ${seed}
-label_noise: 0.05
