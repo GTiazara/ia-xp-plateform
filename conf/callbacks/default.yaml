@@ -1,0 +1,4 @@
+# Observateurs du fit. Le checkpoint et l'arrêt anticipé surveillent
+# val_loss. La patience est un nombre d'époques sans amélioration.
+
+early_stopping_patience: 5

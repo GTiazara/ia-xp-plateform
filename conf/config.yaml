@@ -1,0 +1,33 @@
+# Configuration de l'expérience par défaut.
+#
+# Hydra assemble les groupes ci-dessous en une seule configuration.
+# Chaque dossier de conf/ est un groupe : on en choisit un fichier.
+# Une surcharge en ligne de commande remplace une valeur sans toucher
+# aux fichiers, par exemple : trainer.max_epochs=5
+#
+# Les objets (modèle, datamodule) ne sont pas construits ici. La
+# configuration donne des noms ; les factories les transforment en objets.
+
+defaults:
+  - data: perceptron
+  - model: perceptron
+  - trainer: default
+  - module: classification
+  - callbacks: default
+  - logger: tensorboard
+  - _self_
+
+# train | test | predict
+mode: train
+
+# Graine reprise par le découpage des données (${seed} dans data/).
+seed: 42
+
+# Dossier des logs et du checkpoint (train).
+output_dir: logs/xp01
+
+# Checkpoint relu par test et predict. null tant qu'aucun fit n'a tourné.
+checkpoint: null
+
+# CSV écrit par predict.
+predictions: predictions.csv

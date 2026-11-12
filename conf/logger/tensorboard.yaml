@@ -1,0 +1,19 @@
+# Suivi d'expérience par défaut : TensorBoard, en local, sans compte.
+#
+# Les métriques émises par ClassificationModule (train_loss, val_loss,
+# val_acc, ...) et le taux d'apprentissage arrivent ici.
+#
+# save_dir est partagé par toutes les expériences : TensorBoard range
+# chaque lancement dans save_dir/<name>/version_N, N augmentant à chaque
+# run. Les expériences passées restent donc visibles avec la courante :
+#
+#   poetry run tensorboard --logdir logs/tensorboard
+#
+# Pour regrouper un autre type d'expérience, change name (par exemple
+# logger.params.name=perceptron_bank).
+
+name: tensorboard
+params:
+  save_dir: logs/tensorboard
+  name: perceptron
+  default_hp_metric: false

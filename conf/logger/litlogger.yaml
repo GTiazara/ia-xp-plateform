@@ -1,0 +1,12 @@
+# Suivi d'expérience en ligne : LitLogger (lightning.ai).
+#
+# Les mêmes métriques que TensorBoard arrivent ici, mais LitLogger ouvre
+# une connexion lightning.ai au premier lancement. On le choisit avec
+# logger=litlogger ; le défaut reste TensorBoard (conf/logger/tensorboard.yaml).
+
+name: litlogger
+params:
+  root_dir: ${output_dir}/logger
+  name: perceptron
+  log_model: false
+  save_logs: false

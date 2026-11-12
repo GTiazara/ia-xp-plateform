@@ -1,0 +1,9 @@
+# Perceptron : une couche linéaire suivie d'une sigmoïde.
+#
+# name est la clé de la factory de modèles. input_features doit être
+# égal au nombre de colonnes attributs (toutes sauf id et la cible).
+# null laisse la commande le déduire du fichier.
+
+name: perceptron
+input_features: 2
+output_features: 1

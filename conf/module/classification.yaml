@@ -1,0 +1,5 @@
+# Tâche de classification autour du modèle choisi dans model/.
+# Le modèle doit renvoyer une probabilité entre 0 et 1.
+
+learning_rate: 0.01
+threshold: 0.5
