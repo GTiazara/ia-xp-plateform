@@ -48,6 +48,18 @@ def add_model_arguments(parser: argparse.ArgumentParser) -> None:
         help="Nombre d'entrées. Défaut : le nombre de colonnes attributs.",
     )
     parser.add_argument("--output-features", type=int, default=1, help="Nombre de sorties. Défaut : 1.")
+    parser.add_argument(
+        "--hidden-features",
+        type=int,
+        default=None,
+        help="Largeur de chaque couche cachée du MLP. Ignoré par le perceptron.",
+    )
+    parser.add_argument(
+        "--hidden-layers",
+        type=int,
+        default=None,
+        help="Nombre de couches cachées du MLP. Ignoré par le perceptron.",
+    )
     parser.add_argument("--threshold", type=float, default=0.5, help="Seuil de la classe 1. Défaut : 0.5.")
 
 
@@ -88,6 +100,23 @@ def build_datamodule(args: argparse.Namespace) -> TableDataModule:
     )
 
 
+def model_kwargs(args: argparse.Namespace, input_features: int) -> dict:
+    """Arguments d'architecture transmis à la factory de modèles.
+
+    `hidden_features` et `hidden_layers` ne sont ajoutés que s'ils sont
+    renseignés : le perceptron ne les connaît pas, le MLP oui.
+    """
+    kwargs = {
+        "input_features": input_features,
+        "output_features": args.output_features,
+    }
+    for key in ("hidden_features", "hidden_layers"):
+        value = getattr(args, key, None)
+        if value is not None:
+            kwargs[key] = int(value)
+    return kwargs
+
+
 def build_model(args: argparse.Namespace, input_features: int) -> BaseModel:
     """Construit le modèle. `--input-features` doit coller aux colonnes."""
     if args.input_features is not None and args.input_features != input_features:
@@ -95,11 +124,7 @@ def build_model(args: argparse.Namespace, input_features: int) -> BaseModel:
             f"--input-features vaut {args.input_features}, mais les colonnes "
             f"attributs sont au nombre de {input_features}."
         )
-    return create_model(
-        args.model,
-        input_features=input_features,
-        output_features=args.output_features,
-    )
+    return create_model(args.model, **model_kwargs(args, input_features))
 
 
 def read_table(path: str | Path, hdf_key: str | None) -> pd.DataFrame:

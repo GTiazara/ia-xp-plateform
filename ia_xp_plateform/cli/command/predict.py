@@ -5,7 +5,12 @@ from pathlib import Path
 
 import pandas as pd
 
-from ia_xp_plateform.cli.command.common import feature_columns_of, inputs_of, read_table
+from ia_xp_plateform.cli.command.common import (
+    feature_columns_of,
+    inputs_of,
+    model_kwargs,
+    read_table,
+)
 from ia_xp_plateform.inference import Predictor
 
 
@@ -22,10 +27,7 @@ def run_predict(args: argparse.Namespace) -> None:
     predictor = Predictor.from_checkpoint(
         args.checkpoint,
         model_name=args.model,
-        model_kwargs={
-            "input_features": len(columns),
-            "output_features": args.output_features,
-        },
+        model_kwargs=model_kwargs(args, len(columns)),
         threshold=args.threshold,
     )
     probabilities = predictor.predict_proba(inputs_of(dataframe, columns))

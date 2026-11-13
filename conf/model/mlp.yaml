@@ -1,0 +1,13 @@
+# MLP : hidden_layers couches cachées (ReLU), puis une sigmoïde par sortie.
+#
+# name est la clé de la factory. hidden_features est la largeur de
+# chaque couche cachée. hidden_layers est leur nombre.
+# output_features est le nombre de probabilités en sortie : 1 pour la
+# classification binaire actuelle.
+# input_features null laisse la commande le déduire du fichier.
+
+name: mlp
+input_features: null
+output_features: 1
+hidden_features: 16
+hidden_layers: 1

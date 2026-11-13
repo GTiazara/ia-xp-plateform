@@ -27,6 +27,8 @@ def namespace_from_config(cfg: DictConfig) -> SimpleNamespace:
     """
     logger_group = OmegaConf.to_container(cfg.logger, resolve=True)
     input_features = cfg.model.input_features
+    hidden_features = cfg.model.get("hidden_features")
+    hidden_layers = cfg.model.get("hidden_layers")
     return SimpleNamespace(
         data=cfg.data.data_path,
         target=_plain(cfg.data.target_columns),
@@ -44,6 +46,8 @@ def namespace_from_config(cfg: DictConfig) -> SimpleNamespace:
         model=cfg.model.name,
         input_features=None if input_features is None else int(input_features),
         output_features=int(cfg.model.output_features),
+        hidden_features=None if hidden_features is None else int(hidden_features),
+        hidden_layers=None if hidden_layers is None else int(hidden_layers),
         threshold=float(cfg.module.threshold),
         learning_rate=float(cfg.module.learning_rate),
         accelerator=str(cfg.trainer.accelerator),
@@ -82,6 +86,9 @@ def run(cfg: DictConfig) -> None:
         run_predict(args)
 
 
-def launch(overrides: list[str] | None = None) -> None:
-    """Charge ``conf/config.yaml``, applique les surcharges, puis lance."""
-    run(load_config(overrides))
+def launch(
+    overrides: list[str] | None = None,
+    config_name: str = "config",
+) -> None:
+    """Charge un fichier de ``conf/``, applique les surcharges, puis lance."""
+    run(load_config(overrides, config_name=config_name))

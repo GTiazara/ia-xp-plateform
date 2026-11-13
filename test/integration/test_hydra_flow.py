@@ -13,6 +13,8 @@ def _overrides(tmp_path, data):
         f"logger.params.save_dir={tmp_path / 'tensorboard'}",
         "data.batch_size=4",
         "data.target_columns=target",
+        "model.input_features=2",
+        "trainer.accelerator=cpu",
         "trainer.max_epochs=1",
         "callbacks.early_stopping_patience=2",
     ]
@@ -44,6 +46,19 @@ def test_hydra_config_trains_tests_and_predicts(tmp_path, sample_dataframe, caps
     assert predict_code == 0
     assert list(written.columns) == ["id", "probability", "prediction"]
     assert len(written) == len(sample_dataframe)
+
+
+def test_named_mlp_config_trains(tmp_path, sample_dataframe, capsys):
+    data = tmp_path / "data.csv"
+    sample_dataframe.to_csv(data, index=False)
+
+    code = main(["train_mlp", *_overrides(tmp_path, data), "mode=train"])
+    checkpoint = capsys.readouterr().out.strip().splitlines()[-1]
+
+    events = list((tmp_path / "tensorboard" / "mlp" / "version_0").glob("events.*"))
+    assert code == 0
+    assert checkpoint.endswith("best-model.ckpt")
+    assert len(events) == 1
 
 
 def test_tensorboard_is_the_default_logger_and_writes_event_files(
@@ -81,6 +96,8 @@ def test_litlogger_remains_selectable_from_the_command_line(tmp_path, sample_dat
         f"output_dir={tmp_path / 'run'}",
         "data.batch_size=4",
         "data.target_columns=target",
+        "model.input_features=2",
+        "trainer.accelerator=cpu",
         "trainer.max_epochs=1",
         "logger=litlogger",
         f"logger.params.root_dir={tmp_path / 'lit'}",

@@ -1,0 +1,29 @@
+# Données de l'expérience perceptron.
+#
+# Le fichier s'appelle perceptron parce qu'il décrit CE jeu de données.
+# name est le nom de la factory : aujourd'hui le seul datamodule est
+# "table", qui lit un CSV, un Feather ou un HDF5 déjà nettoyé.
+
+name: table
+
+# À remplacer par le fichier réel, ou en ligne de commande :
+# data.data_path=chemin/data.csv
+data_path: /home/GTiazara/Documents/workspace/get_experience_project/IA_DATA_FORMAT_CONVERTER/data/output/bank-full-ordinal.feather
+#/home/GTiazara/Documents/workspace/get_experience_project/IA_DATA_FORMAT_CONVERTER/data/output/bank-full-job_marry.feather
+#/home/GTiazara/Documents/workspace/get_experience_project/IA_DATA_FORMAT_CONVERTER/data/output/bank-full-duration.feather
+target_columns: y
+feature_columns: null
+
+# null : le datamodule découpe lui-même. Sinon, chemin du fichier split
+# compagnon (mêmes identifiants, pas forcément le même ordre).
+split_path: null
+id_column: id
+split_column: split
+val_split: 0.2
+test_split: 0.1
+split_seed: ${seed}
+
+hdf_key: null
+split_hdf_key: null
+batch_size: 32
+num_workers: 0

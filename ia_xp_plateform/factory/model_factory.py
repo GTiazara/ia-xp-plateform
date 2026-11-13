@@ -2,17 +2,19 @@
 
 La factory de modèles construit un `BaseModel` à partir de son nom. Le
 reste de la plateforme (un futur entraîneur, une configuration) n'a pas
-besoin d'importer `Perceptron` ni de connaître son constructeur : il donne
+besoin d'importer `Perceptron` ou `MLP` ni de connaître leur constructeur : il donne
 un nom et des paramètres, et récupère un modèle qui respecte le contrat
 `forward`.
 
 """
 
 from ia_xp_plateform.models.base import BaseModel
+from ia_xp_plateform.models.mlp import MLP
 from ia_xp_plateform.models.perceptron import Perceptron
 
 # Nom utilisé par la configuration -> classe concrète.
 MODELS: dict[str, type[BaseModel]] = {
+    "mlp": MLP,
     "perceptron": Perceptron,
 }
 

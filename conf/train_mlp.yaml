@@ -1,0 +1,30 @@
+# Expérience MLP, lancée par : poetry run ia-xp-conf train_mlp
+#
+# Même données que le perceptron. Le modèle vient de model/mlp.yaml.
+# Les courbes TensorBoard sont rangées à part, sous le nom mlp.
+
+defaults:
+  - data: perceptron
+  - model: mlp
+  - trainer: default
+  - module: classification
+  - callbacks: default
+  - logger: tensorboard
+  - _self_
+
+mode: train
+seed: 42
+output_dir: logs/train_mlp
+checkpoint: null
+predictions: predictions.csv
+
+logger:
+  params:
+    name: mlp
+
+
+model:
+  input_features: 16
+  hidden_features: 16
+  hidden_layers: 10
+  output_features: 1

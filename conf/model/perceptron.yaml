@@ -5,5 +5,5 @@
 # null laisse la commande le déduire du fichier.
 
 name: perceptron
-input_features: 2
+input_features: 15
 output_features: 1

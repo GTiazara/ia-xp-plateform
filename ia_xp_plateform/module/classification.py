@@ -15,6 +15,11 @@ import pytorch_lightning as pl
 import torch
 from torch import nn
 
+from ia_xp_plateform.metric import (
+    BinaryClassificationMetrics,
+    confusion_matrix_figure,
+    normalize_confusion_matrix,
+)
 from ia_xp_plateform.models.base import BaseModel
 
 
@@ -64,6 +69,13 @@ class ClassificationModule(pl.LightningModule):
         # `BCELoss` attend une probabilité entre 0 et 1, ce que renvoie
         # déjà `Perceptron` après sa sigmoïde.
         self.criterion = nn.BCELoss()
+        # Un compteur par étape. Le calcul (justesse, précision, rappel,
+        # F1) vit dans `metric` : ce module ne fait que l'appeler puis
+        # journaliser les noms `train_acc`, `val_precision`, `val_f1`, ...
+        self.metrics = {
+            stage: BinaryClassificationMetrics()
+            for stage in ("train", "val", "test")
+        }
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Délègue le calcul au modèle sous-jacent."""
@@ -74,19 +86,76 @@ class ClassificationModule(pl.LightningModule):
         batch: tuple[torch.Tensor, torch.Tensor],
         stage: str,
     ) -> torch.Tensor:
-        """Calcule la perte et la précision pour `train`, `val` ou `test`."""
+        """Calcule la perte et alimente les métriques de l'étape.
+
+        La justesse, la précision, le rappel et le F1 sont journalisés
+        en fin d'époque, sous `{stage}_acc`, `{stage}_precision`,
+        `{stage}_recall` et `{stage}_f1`.
+        """
         x, y = batch
         probabilities = self(x)
         loss = self.criterion(probabilities, y)
-
-        predictions = (probabilities >= self.threshold).float()
-        accuracy = (predictions == y).float().mean()
+        self.metrics[stage].update(probabilities, y, self.threshold)
 
         # `val_loss` est le nom attendu par `ModelCheckpoint` et
         # `EarlyStopping` dans `create_callbacks`.
         self.log(f"{stage}_loss", loss, on_step=False, on_epoch=True)
-        self.log(f"{stage}_acc", accuracy, on_step=False, on_epoch=True)
         return loss
+
+    def _log_metrics(self, stage: str) -> None:
+        """Publie les métriques et l'image de la matrice de confusion."""
+        for name, value in self.metrics[stage].compute().items():
+            self.log(f"{stage}_{name}", value, on_step=False, on_epoch=True)
+        self._log_confusion_matrix(stage)
+
+    def _log_confusion_matrix(self, stage: str) -> None:
+        """Envoie la matrice de l'époque aux loggers qui acceptent une figure.
+
+        TensorBoard range les effectifs sous `{stage}_confusion_matrix`
+        et la part de chaque classe réelle sous
+        `{stage}_confusion_matrix_normalized`, une image par époque.
+        Un logger sans `add_figure` (le CSV, par exemple) est ignoré.
+        """
+        counts = self.metrics[stage].confusion_matrix()
+        figures = {
+            f"{stage}_confusion_matrix": confusion_matrix_figure(
+                counts,
+                title=f"Matrice de confusion ({stage})",
+            ),
+            f"{stage}_confusion_matrix_normalized": confusion_matrix_figure(
+                normalize_confusion_matrix(counts),
+                title=f"Matrice de confusion normalisée ({stage})",
+                normalized=True,
+            ),
+        }
+        step = int(self.current_epoch)
+        for logger in self.loggers:
+            experiment = getattr(logger, "experiment", None)
+            add_figure = getattr(experiment, "add_figure", None)
+            if add_figure is None:
+                continue
+            for tag, figure in figures.items():
+                add_figure(tag, figure, global_step=step)
+        for figure in figures.values():
+            figure.clear()
+
+    def on_train_epoch_start(self) -> None:
+        self.metrics["train"].reset()
+
+    def on_validation_epoch_start(self) -> None:
+        self.metrics["val"].reset()
+
+    def on_test_epoch_start(self) -> None:
+        self.metrics["test"].reset()
+
+    def on_train_epoch_end(self) -> None:
+        self._log_metrics("train")
+
+    def on_validation_epoch_end(self) -> None:
+        self._log_metrics("val")
+
+    def on_test_epoch_end(self) -> None:
+        self._log_metrics("test")
 
     def training_step(
         self,

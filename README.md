@@ -19,7 +19,8 @@ poetry install
 ia_xp_plateform/
 ├── models/
 │   ├── base.py                  # contrat commun des modèles
-│   └── perceptron.py            # premier modèle
+│   ├── perceptron.py            # une couche linéaire
+│   └── mlp.py                   # profondeur, largeur, N sorties
 ├── data/
 │   ├── dataset/
 │   │   ├── base.py              # x et y, rien d'autre
@@ -32,6 +33,9 @@ ia_xp_plateform/
 │   └── logger_factory.py        # nom -> logger Lightning
 ├── callback/
 │   └── callbacks.py             # checkpoint, arrêt anticipé, taux d'apprentissage
+├── metric/
+│   ├── binary_classification.py # justesse, précision, rappel, F1
+│   └── confusion_matrix.py      # image de la matrice de confusion
 ├── module/
 │   └── classification.py        # tâche de classification autour d'un BaseModel
 ├── inference/
@@ -95,6 +99,34 @@ from ia_xp_plateform.models import Perceptron
 model = Perceptron(input_features=2, output_features=1)
 probabilite = model(x)  # (batch, 1)
 ```
+
+## 4.1. Le MLP
+
+`MLP`, dans `models/mlp.py`, empile `hidden_layers` couches cachées
+(1 par défaut), chacune de largeur `hidden_features` (16 par défaut).
+Chaque couche cachée
+est une couche linéaire suivie d'une ReLU. La dernière couche, puis
+une sigmoïde, donne `output_features` probabilités entre 0 et 1. Avec
+`output_features=1`, `ClassificationModule` l'entraîne comme le
+perceptron.
+
+```python
+from ia_xp_plateform.factory import create_model
+
+model = create_model(
+    "mlp",
+    input_features=2,
+    hidden_features=16,
+    hidden_layers=2,
+    output_features=1,
+)
+```
+
+```bash
+poetry run ia-xp-conf model=mlp model.hidden_features=16 model.hidden_layers=2 model.output_features=1
+```
+
+`model.input_features` doit rester égal au nombre de colonnes attributs.
 
 ## 5. Le datamodule tabulaire
 
@@ -196,6 +228,7 @@ nom et des paramètres.
 | Nom | Objet construit |
 | --- | --- |
 | `"perceptron"` | `Perceptron` |
+| `"mlp"` | `MLP` (`hidden_layers` couches cachées, `output_features` sorties) |
 | `"table"` | `TableDataModule` |
 | `"tensorboard"` | `TensorBoardLogger` (logger par défaut) |
 | `"litlogger"` | `LitLogger` |
@@ -240,7 +273,30 @@ Un `BaseModel` ne sait pas calculer une perte ni mettre ses poids à
 jour. `ClassificationModule` porte cette tâche pour n'importe quel
 `BaseModel` qui renvoie une probabilité entre 0 et 1 : perte `BCELoss`,
 optimiseur Adam, et journalisation de `train_loss`, `val_loss`,
-`test_loss`, `train_acc`, `val_acc`, `test_acc`.
+`test_loss`, `train_acc`, `val_acc`, `test_acc`, puis, sur l'époque
+entière, `train_precision`, `val_precision`, `test_precision`,
+`train_recall`, `val_recall`, `test_recall`, `train_f1`, `val_f1`,
+`test_f1`. À chaque époque, le
+module envoie aussi deux images à TensorBoard (onglet Images).
+`train_confusion_matrix` et `val_confusion_matrix` sont les effectifs.
+`train_confusion_matrix_normalized` et
+`val_confusion_matrix_normalized` divisent chaque ligne par son total :
+la part des prédictions dans chaque classe réelle. Une classe absente
+reste à 0. Les lignes sont la classe réelle, les colonnes la classe
+prédite.
+
+Ces chiffres ne sont pas calculés ici. Le module appelle
+`BinaryClassificationMetrics` (`ia_xp_plateform/metric`) : `reset` au
+début de l'époque, `update` à chaque lot, `compute` à la fin. Un futur
+module de régression branchera un autre objet de métriques. La perte
+et l'optimiseur restent dans le module.
+
+La précision est la part de vrais positifs parmi les exemples annoncés
+positifs. Le rappel est la part des positifs réels qui ont été
+retrouvés. Le F1 est leur moyenne harmonique : il baisse dès que l'un
+des deux baisse, et vaut 0 quand il n'y a aucun vrai positif. La
+précision et le rappel valent 0 quand leur dénominateur est nul
+(aucun positif annoncé, ou aucun positif dans l'époque).
 
 `val_loss` est le nom attendu par `create_callbacks` : le module et les
 callbacks se branchent ensemble sans réglage supplémentaire.
@@ -324,7 +380,9 @@ fichier par groupe. Les factories lisent les noms (`table`,
 
 ```text
 conf/
-├── config.yaml                  # groupes choisis, mode, seed, dossiers
+├── config.yaml                  # expérience par défaut
+├── train_perceptron.yaml        # poetry run ia-xp-conf train_perceptron
+├── train_mlp.yaml               # poetry run ia-xp-conf train_mlp
 ├── data/
 │   └── perceptron.yaml          # fichier tabulaire, cible, splits
 ├── model/
@@ -340,11 +398,20 @@ conf/
     └── litlogger.yaml           # suivi en ligne, lightning.ai
 ```
 
-`data/perceptron.yaml` porte le nom de l'expérience. Le datamodule
+`data/perceptron.yaml` porte le jeu de données. Le datamodule
 reste `name: table` : c'est la factory qui sait lire un CSV, un
-Feather ou un HDF5. `split_seed` reprend `${seed}` de `config.yaml`.
+Feather ou un HDF5. `split_seed` reprend `${seed}` du fichier choisi.
+
+Chaque fichier `conf/*.yaml` est une expérience. Le premier argument
+de `ia-xp-conf`, s'il ne contient pas `=`, est son nom. Sans argument,
+on lance `config.yaml`. Les arguments suivants restent des surcharges.
+`train_perceptron` et `train_mlp` écrivent dans `logs/train_perceptron`
+et `logs/train_mlp`. Le MLP range ses courbes sous le nom `mlp`.
 
 ```bash
+poetry run ia-xp-conf train_mlp
+poetry run ia-xp-conf train_perceptron trainer.max_epochs=10
+
 poetry run ia-xp-conf \
   data.data_path=data.csv trainer.max_epochs=10
 
@@ -383,7 +450,8 @@ poetry run tensorboard --logdir logs/tensorboard
 ```
 
 Ouvre ensuite l'adresse affichée (`http://localhost:6006`) : les
-courbes `train_loss`, `val_loss`, `val_acc` et le taux d'apprentissage
+courbes `train_loss`, `val_loss`, `val_acc`, `val_precision`,
+`val_recall` et le taux d'apprentissage
 se mettent à jour pendant l'entraînement. Pour classer un autre type
 d'expérience à part, change le nom :
 `logger.params.name=perceptron_bank`.
@@ -414,7 +482,8 @@ test/
 ```
 
 - `test/unitaire/` couvre `BaseDataset`, `TableDataset`, `BaseModel`,
-  `Perceptron`, `ClassificationModule`, `Predictor` (checkpoints
+  `Perceptron`, `MLP`, `ClassificationModule`, `BinaryClassificationMetrics`
+  (précision, rappel, F1, matrice de confusion), `Predictor` (checkpoints
   fabriqués à la main, chaque cas d'erreur), les factories
   (`create_model`, `create_datamodule`, `create_logger`), `create_callbacks`, et les
   fonctions internes de `TableDataModule` (lecture de fichier,
@@ -425,7 +494,8 @@ test/
 - `test/integration/` couvre `TableDataModule` de bout en bout (fichier
   réel sur disque, 3 formats, les deux modes de split), l'enchaînement
   factory → datamodule → `DataLoader` → modèle, un `Trainer.fit` complet
-  avec `ClassificationModule` et les callbacks, la relecture du
+  avec `ClassificationModule` et les callbacks (y compris l'image de
+  la matrice de confusion dans TensorBoard), la relecture du
   checkpoint obtenu par `Predictor`, le parcours `train` puis `test`
   puis `predict` du CLI, le même parcours lancé depuis `conf/`,
   les fichiers d'événements TensorBoard écrits par défaut, la

@@ -1,0 +1,23 @@
+# Expérience perceptron, lancée par : poetry run ia-xp-conf train_perceptron
+#
+# Les groupes sont les mêmes que config.yaml. Ce fichier choisit le
+# perceptron et son dossier de logs. input_features null : la commande
+# compte les colonnes du fichier de données.
+
+defaults:
+  - data: perceptron
+  - model: perceptron
+  - trainer: default
+  - module: classification
+  - callbacks: default
+  - logger: tensorboard
+  - _self_
+
+mode: train
+seed: 42
+output_dir: logs/train_perceptron
+checkpoint: null
+predictions: predictions.csv
+
+model:
+  input_features: null

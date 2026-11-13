@@ -16,14 +16,25 @@ def conf_directory() -> Path:
     return Path(__file__).resolve().parents[1] / "conf"
 
 
-def load_config(overrides: list[str] | None = None) -> DictConfig:
-    """Assemble ``config.yaml`` et applique les surcharges Hydra.
+def available_configs() -> list[str]:
+    """Noms des fichiers ``conf/*.yaml``, sans l'extension."""
+    return sorted(path.stem for path in conf_directory().glob("*.yaml"))
+
+
+def load_config(
+    overrides: list[str] | None = None,
+    config_name: str = "config",
+) -> DictConfig:
+    """Assemble un fichier de ``conf/`` et applique les surcharges Hydra.
 
     Parameters
     ----------
     overrides : list[str] | None, optional
         Surcharges de la forme ``"trainer.max_epochs=5"``. Par défaut
         aucune : on obtient l'expérience décrite dans les fichiers.
+    config_name : str, optional
+        Nom du fichier à la racine de ``conf/``, sans ``.yaml``.
+        Par défaut ``config``.
 
     Returns
     -------
@@ -31,8 +42,14 @@ def load_config(overrides: list[str] | None = None) -> DictConfig:
         Configuration résolue (les interpolations comme ``${seed}``
         sont déjà remplacées).
     """
+    if config_name not in available_configs():
+        known = ", ".join(available_configs())
+        raise ValueError(
+            f"Configuration inconnue : '{config_name}'. "
+            f"Configurations disponibles : {known}."
+        )
     with initialize_config_dir(
         config_dir=str(conf_directory()),
         version_base="1.3",
     ):
-        return compose(config_name="config", overrides=list(overrides or []))
+        return compose(config_name=config_name, overrides=list(overrides or []))

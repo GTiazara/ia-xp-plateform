@@ -31,3 +31,7 @@ checkpoint: null
 
 # CSV écrit par predict.
 predictions: predictions.csv
+
+##override
+model:
+  input_features: 16
