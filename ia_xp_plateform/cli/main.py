@@ -58,7 +58,14 @@ def build_parser() -> argparse.ArgumentParser:
     train.add_argument("--patience", type=int, default=5, help="Patience de l'arrêt anticipé. Défaut : 5.")
     train.add_argument("--val-split", type=float, default=0.2, help="Part de validation si pas de fichier split.")
     train.add_argument("--test-split", type=float, default=0.1, help="Part de test si pas de fichier split.")
-    train.add_argument("--seed", type=int, default=42, help="Graine du découpage automatique.")
+    train.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help=(
+            "Graine du découpage, de l'initialisation et de l'ordre des batches."
+        ),
+    )
     train.set_defaults(func=run_train)
 
     test = commands.add_parser("test", help="Évalue un checkpoint.")

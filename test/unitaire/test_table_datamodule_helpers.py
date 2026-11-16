@@ -8,6 +8,7 @@ datamodule complet.
 
 import pandas as pd
 import pytest
+import torch
 
 from ia_xp_plateform.data.datamodule.table_datamodule import (
     _read_table,
@@ -116,6 +117,21 @@ def test_split_dataframe_is_reproducible_with_the_same_seed():
     )
 
     pd.testing.assert_frame_equal(first_train, second_train)
+
+
+def test_split_validation_ids_ignore_the_global_generator():
+    dataframe = pd.DataFrame({"id": range(50), "a": range(50)})
+
+    torch.manual_seed(1)
+    _, first_val, _ = _split_dataframe(
+        dataframe, val_split=0.2, test_split=0.1, seed=7
+    )
+    torch.manual_seed(2)
+    _, second_val, _ = _split_dataframe(
+        dataframe, val_split=0.2, test_split=0.1, seed=7
+    )
+
+    assert first_val["id"].tolist() == second_val["id"].tolist()
 
 
 def test_split_dataframe_changes_with_a_different_seed():

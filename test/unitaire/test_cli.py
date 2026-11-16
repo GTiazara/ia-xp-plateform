@@ -10,6 +10,14 @@ import pytest
 from ia_xp_plateform.cli.main import main
 
 
+def test_train_help_names_initialization(capsys):
+    with pytest.raises(SystemExit) as caught:
+        main(["train", "--help"])
+
+    assert caught.value.code == 0
+    assert "initialisation" in capsys.readouterr().out
+
+
 def test_requires_a_command():
     with pytest.raises(SystemExit) as caught:
         main([])
