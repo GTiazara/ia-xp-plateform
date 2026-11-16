@@ -2,8 +2,8 @@
 
 Un MLP (perceptron multicouche) empile des couches linéaires. La
 profondeur est le nombre de couches cachées, la largeur leur nombre de
-neurones. `forward` renvoie une probabilité entre 0 et 1 pour chaque
-sortie, comme `Perceptron`.
+neurones. `forward` renvoie un logit par sortie, comme `Perceptron`.
+La tâche binaire transforme ce logit en probabilité.
 
 """
 
@@ -18,8 +18,9 @@ class MLP(BaseModel):
 
     `hidden_layers` est le nombre de couches cachées. Chacune a la même
     largeur, `hidden_features`, et une ReLU. La dernière couche donne
-    `output_features` probabilités. Avec une seule couche cachée et une
-    seule sortie, `ClassificationModule` l'entraîne comme le perceptron.
+    `output_features` logits, sans sigmoïde. Avec une seule couche cachée
+    et une seule sortie, `ClassificationModule` l'entraîne comme le
+    perceptron.
     """
 
     def __init__(
@@ -36,7 +37,7 @@ class MLP(BaseModel):
         input_features : int, optional
             Nombre d'entrées, par défaut 2.
         output_features : int, optional
-            Nombre de sorties, donc de probabilités, par défaut 1.
+            Nombre de sorties, donc de logits, par défaut 1.
         hidden_features : int, optional
             Largeur de chaque couche cachée, par défaut 16.
         hidden_layers : int, optional
@@ -72,7 +73,7 @@ class MLP(BaseModel):
         self.network = nn.Sequential(*blocks)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Calcule une probabilité par sortie.
+        """Calcule un logit par sortie.
 
         Parameters
         ----------
@@ -82,7 +83,7 @@ class MLP(BaseModel):
         Returns
         -------
         torch.Tensor
-            Tenseur de forme `(batch, output_features)`, chaque valeur
-            entre 0 et 1.
+            Tenseur de forme `(batch, output_features)`, sans sigmoïde.
+            Une valeur peut sortir de `[0, 1]`.
         """
-        return torch.sigmoid(self.network(x))
+        return self.network(x)

@@ -9,9 +9,12 @@ import pytest
 import torch
 from torch import nn
 
+from ia_xp_plateform.cli.command.predict import prediction_frame
 from ia_xp_plateform.inference import Predictor
 from ia_xp_plateform.models.base import BaseModel
+from ia_xp_plateform.models.mlp import MLP
 from ia_xp_plateform.models.perceptron import Perceptron
+from ia_xp_plateform.task.multiclass import MulticlassTask
 
 
 def _perceptron_with(weights: list[float], bias: float) -> Perceptron:
@@ -62,7 +65,7 @@ def test_rejects_threshold_outside_zero_and_one(threshold):
 # --- predict_proba / predict ----------------------------------------------
 
 
-def test_predict_proba_matches_the_model_output():
+def test_predict_proba_is_the_sigmoid_of_the_logits():
     model = _perceptron_with([1.0, 1.0], 0.0)
     predictor = Predictor(model)
     x = torch.tensor([[1.0, 2.0], [-1.0, -2.0]])
@@ -70,7 +73,7 @@ def test_predict_proba_matches_the_model_output():
     probabilities = predictor.predict_proba(x)
 
     assert probabilities.shape == (2, 1)
-    assert torch.allclose(probabilities, model(x))
+    assert torch.allclose(probabilities, torch.sigmoid(model(x)))
     assert probabilities.requires_grad is False
 
 
@@ -106,7 +109,7 @@ def test_predict_works_with_any_base_model():
         def __init__(self) -> None:
             super().__init__()
             self.net = nn.Sequential(
-                nn.Linear(2, 3), nn.ReLU(), nn.Linear(3, 1), nn.Sigmoid()
+                nn.Linear(2, 3), nn.ReLU(), nn.Linear(3, 1)
             )
 
         def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -142,8 +145,8 @@ def test_from_checkpoint_gives_the_same_prediction_as_the_trained_model(
 
     predictor = Predictor.from_checkpoint(path, "perceptron")
 
-    expected = _perceptron_with([1.0, 1.0], 0.0)(x)
-    assert torch.allclose(predictor.predict_proba(x), expected)
+    logits = _perceptron_with([1.0, 1.0], 0.0)(x)
+    assert torch.allclose(predictor.predict_proba(x), torch.sigmoid(logits))
 
 
 def test_from_checkpoint_missing_file_raises(tmp_path):
@@ -183,6 +186,63 @@ def test_from_checkpoint_rejects_an_architecture_mismatch(tmp_path):
         Predictor.from_checkpoint(
             path, "perceptron", model_kwargs={"input_features": 5}
         )
+
+
+def test_prediction_frame_keeps_one_binary_output():
+    frame = prediction_frame(
+        [7],
+        torch.tensor([[0.8]]),
+        torch.tensor([[1]]),
+        "id",
+    )
+
+    assert list(frame.columns) == ["id", "probability", "prediction"]
+
+
+def test_prediction_frame_writes_one_class_and_a_probability_per_logit():
+    frame = prediction_frame(
+        [7],
+        torch.tensor([[0.2, 0.5, 0.3]]),
+        torch.tensor([[1]]),
+        "id",
+    )
+
+    assert list(frame.columns) == [
+        "id",
+        "prediction",
+        "probability_0",
+        "probability_1",
+        "probability_2",
+    ]
+    assert frame["prediction"].item() == 1
+
+
+def test_prediction_frame_keeps_one_binary_decision_per_output():
+    frame = prediction_frame(
+        [7],
+        torch.tensor([[0.2, 0.8]]),
+        torch.tensor([[0, 1]]),
+        "id",
+    )
+
+    assert list(frame.columns) == [
+        "id",
+        "probability_0",
+        "prediction_0",
+        "probability_1",
+        "prediction_1",
+    ]
+
+
+def test_a_multiclass_predictor_returns_the_class_index():
+    model = MLP(input_features=2, output_features=3, hidden_features=4)
+    predictor = Predictor(model, task=MulticlassTask())
+    x = torch.randn(4, 2)
+
+    classes = predictor.predict(x)
+
+    assert classes.shape == (4, 1)
+    assert torch.equal(classes, model(x).argmax(dim=-1, keepdim=True))
 
 
 def test_from_checkpoint_unknown_model_name_raises(tmp_path):

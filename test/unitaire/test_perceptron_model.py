@@ -1,8 +1,8 @@
 """Tests unitaires de `Perceptron`.
 
-On vérifie la forme de la sortie, que la sigmoïde renvoie bien une
-probabilité entre 0 et 1, la configuration du nombre d'entrées/sorties, et
-que le contrat `BaseModel` est respecté.
+On vérifie la forme de la sortie, que `forward` renvoie le logit de la
+couche linéaire, la configuration du nombre d'entrées/sorties, et que le
+contrat `BaseModel` est respecté.
 """
 
 import torch
@@ -20,14 +20,16 @@ def test_default_output_shape():
     assert output.shape == (5, 1)
 
 
-def test_output_is_a_probability():
-    model = Perceptron()
-    x = torch.randn(20, 2)
+def test_known_weights_return_the_linear_logit():
+    model = Perceptron(input_features=2, output_features=1)
+    with torch.no_grad():
+        model.linear.weight.copy_(torch.tensor([[1.0, 1.0]]))
+        model.linear.bias.copy_(torch.tensor([0.0]))
 
-    output = model(x)
+    output = model(torch.tensor([[1.0, 2.0]]))
 
-    assert torch.all(output >= 0.0)
-    assert torch.all(output <= 1.0)
+    assert output.shape == (1, 1)
+    assert output.item() == 3.0
 
 
 def test_custom_input_and_output_features():

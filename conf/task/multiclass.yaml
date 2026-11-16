@@ -1,0 +1,9 @@
+# Tâche multiclasse.
+#
+# name est la clé de la factory. loss est la perte acceptée par cette
+# tâche. cross_entropy est l'entropie croisée calculée sur les logits
+# et un indice de classe. Le nombre de classes est output_features.
+# Le seuil du module ne change pas la classe prédite.
+
+name: multiclass
+loss: cross_entropy

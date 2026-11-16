@@ -13,6 +13,7 @@ defaults:
   - model: perceptron
   - trainer: default
   - module: classification
+  - task: binary
   - callbacks: default
   - logger: tensorboard
   - augmentation: none
@@ -21,7 +22,8 @@ defaults:
 # train | test | predict
 mode: train
 
-# Graine reprise par le découpage des données (${seed} dans data/).
+# Graine du découpage, de l'initialisation et de l'ordre des batches.
+# Le découpage la reprend via ${seed} dans data/.
 seed: 42
 
 # Dossier des logs et du checkpoint (train).

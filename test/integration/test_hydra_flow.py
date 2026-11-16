@@ -14,6 +14,7 @@ def _overrides(tmp_path, data):
         "data.batch_size=4",
         "data.target_columns=target",
         "model.input_features=2",
+        "model.output_features=1",
         "trainer.accelerator=cpu",
         "trainer.max_epochs=1",
         "callbacks.early_stopping_patience=2",
@@ -52,7 +53,9 @@ def test_named_mlp_config_trains(tmp_path, sample_dataframe, capsys):
     data = tmp_path / "data.csv"
     sample_dataframe.to_csv(data, index=False)
 
-    code = main(["train_mlp", *_overrides(tmp_path, data), "mode=train"])
+    code = main(
+        ["train_mlp", *_overrides(tmp_path, data), "task=binary", "mode=train"]
+    )
     checkpoint = capsys.readouterr().out.strip().splitlines()[-1]
 
     events = list((tmp_path / "tensorboard" / "mlp" / "version_0").glob("events.*"))
@@ -97,6 +100,7 @@ def test_litlogger_remains_selectable_from_the_command_line(tmp_path, sample_dat
         "data.batch_size=4",
         "data.target_columns=target",
         "model.input_features=2",
+        "model.output_features=1",
         "trainer.accelerator=cpu",
         "trainer.max_epochs=1",
         "logger=litlogger",

@@ -68,6 +68,135 @@ def test_f1_is_the_harmonic_mean_of_precision_and_recall():
     assert values["f1"].item() == pytest.approx(0.5)
 
 
+def test_average_precision_is_one_when_the_ranking_is_perfect_below_the_threshold():
+    metrics = BinaryClassificationMetrics()
+    metrics.update(
+        torch.tensor([0.4, 0.3, 0.2, 0.1]),
+        torch.tensor([1.0, 1.0, 0.0, 0.0]),
+        threshold=0.5,
+    )
+    values = metrics.compute()
+
+    assert values["ap"].item() == pytest.approx(1.0)
+    assert values["precision"].item() == 0.0
+    assert values["recall"].item() == 0.0
+    assert values["f1"].item() == 0.0
+
+
+def test_average_precision_of_an_imperfect_ranking_is_five_sixths():
+    metrics = BinaryClassificationMetrics()
+    metrics.update(
+        torch.tensor([0.9, 0.8, 0.1]),
+        torch.tensor([1.0, 0.0, 1.0]),
+        threshold=0.5,
+    )
+
+    assert metrics.compute()["ap"].item() == pytest.approx(5 / 6)
+
+
+def test_equal_scores_keep_the_arrival_order():
+    metrics = BinaryClassificationMetrics()
+    metrics.update(
+        torch.tensor([0.5, 0.5]),
+        torch.tensor([0.0, 1.0]),
+        threshold=0.5,
+    )
+
+    assert metrics.compute()["ap"].item() == pytest.approx(0.5)
+
+
+def test_average_precision_is_zero_without_a_positive_or_an_example():
+    metrics = BinaryClassificationMetrics()
+
+    assert metrics.compute()["ap"].item() == 0.0
+
+    metrics.update(torch.tensor([0.2, 0.9]), torch.tensor([0.0, 0.0]), threshold=0.5)
+
+    assert metrics.compute()["ap"].item() == 0.0
+
+
+def test_average_precision_accumulates_batches_until_reset():
+    metrics = BinaryClassificationMetrics()
+    metrics.update(torch.tensor([0.9]), torch.tensor([1.0]), threshold=0.5)
+    metrics.update(torch.tensor([0.1]), torch.tensor([0.0]), threshold=0.5)
+
+    assert metrics.compute()["ap"].item() == pytest.approx(1.0)
+
+    metrics.reset()
+
+    assert metrics.compute()["ap"].item() == 0.0
+
+
+def test_matthews_correlation_is_one_when_every_prediction_is_right():
+    metrics = BinaryClassificationMetrics()
+    metrics.update(
+        torch.tensor([0.9, 0.8, 0.2, 0.1]),
+        torch.tensor([1.0, 1.0, 0.0, 0.0]),
+        threshold=0.5,
+    )
+
+    assert metrics.compute()["mcc"].item() == pytest.approx(1.0)
+
+
+def test_matthews_correlation_is_minus_one_when_every_prediction_is_wrong():
+    metrics = BinaryClassificationMetrics()
+    metrics.update(
+        torch.tensor([0.9, 0.8, 0.2, 0.1]),
+        torch.tensor([0.0, 0.0, 1.0, 1.0]),
+        threshold=0.5,
+    )
+
+    assert metrics.compute()["mcc"].item() == pytest.approx(-1.0)
+
+
+def test_matthews_correlation_of_a_mixed_matrix_is_five_twelfths():
+    metrics = BinaryClassificationMetrics()
+    metrics.update(
+        torch.tensor([0.9, 0.8, 0.7, 0.6, 0.4, 0.3, 0.2]),
+        torch.tensor([1.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0]),
+        threshold=0.5,
+    )
+
+    assert metrics.compute()["mcc"].item() == pytest.approx(5 / 12)
+
+
+def test_matthews_correlation_is_zero_when_every_prediction_is_negative():
+    metrics = BinaryClassificationMetrics()
+    metrics.update(
+        torch.tensor([0.2, 0.1]),
+        torch.tensor([1.0, 0.0]),
+        threshold=0.5,
+    )
+
+    assert metrics.compute()["mcc"].item() == 0.0
+
+
+def test_two_outputs_of_one_example_count_as_two_binary_examples():
+    metrics = BinaryClassificationMetrics()
+    metrics.update(
+        torch.tensor([[0.9, 0.1]]),
+        torch.tensor([[1.0, 0.0]]),
+        threshold=0.5,
+    )
+
+    assert metrics.compute()["ap"].item() == pytest.approx(1.0)
+
+
+def test_known_batch_keeps_accuracy_precision_recall_and_f1():
+    metrics = BinaryClassificationMetrics()
+    metrics.update(
+        torch.tensor([0.9, 0.8, 0.2, 0.1]),
+        torch.tensor([1.0, 0.0, 1.0, 0.0]),
+        threshold=0.5,
+    )
+    values = metrics.compute()
+
+    assert values["acc"].item() == pytest.approx(0.5)
+    assert values["precision"].item() == pytest.approx(0.5)
+    assert values["recall"].item() == pytest.approx(0.5)
+    assert values["f1"].item() == pytest.approx(0.5)
+
+
 def test_confusion_matrix_counts_true_and_predicted_classes():
     metrics = BinaryClassificationMetrics()
     probabilities = torch.tensor([[0.9], [0.8], [0.2], [0.1]])

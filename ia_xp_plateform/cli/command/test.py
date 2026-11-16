@@ -6,6 +6,7 @@ from ia_xp_plateform.cli.command.common import (
     apply_saved_preprocessing,
     build_datamodule,
     build_model,
+    build_task,
     make_trainer,
 )
 from ia_xp_plateform.module import ClassificationModule
@@ -22,6 +23,10 @@ def run_test(args: argparse.Namespace) -> None:
             "ou gardez --test-split supérieur à 0."
         )
     model = build_model(args, len(datamodule.train_dataset.feature_columns))
-    module = ClassificationModule(model, threshold=args.threshold)
+    module = ClassificationModule(
+        model,
+        threshold=args.threshold,
+        task=build_task(args),
+    )
     trainer = make_trainer(args, output_dir=None, max_epochs=1)
     trainer.test(module, datamodule=datamodule, ckpt_path=args.checkpoint)

@@ -5,8 +5,6 @@ s'emboîtent correctement : la sortie d'un datamodule peut être donnée
 telle quelle à un modèle `BaseModel`.
 """
 
-import torch
-
 from ia_xp_plateform.data.datamodule import TableDataModule
 from ia_xp_plateform.models.mlp import MLP
 from ia_xp_plateform.models.perceptron import Perceptron
@@ -50,4 +48,3 @@ def test_table_datamodule_feeds_the_mlp(tmp_path, sample_dataframe):
     output = model(batch_x)
 
     assert output.shape == batch_y.shape
-    assert torch.all((output >= 0.0) & (output <= 1.0))

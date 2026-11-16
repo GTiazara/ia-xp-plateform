@@ -1,0 +1,8 @@
+# Tâche binaire.
+#
+# name est la clé de la factory. loss est la perte acceptée par cette
+# tâche. bce est l'entropie croisée binaire calculée sur les logits.
+# Le seuil de décision reste dans module/.
+
+name: binary
+loss: bce

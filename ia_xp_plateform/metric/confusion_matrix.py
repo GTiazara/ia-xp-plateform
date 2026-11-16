@@ -35,7 +35,9 @@ def normalize_confusion_matrix(matrix) -> torch.Tensor:
 
 
 def confusion_matrix_figure(matrix, title: str, *, normalized: bool = False) -> Figure:
-    """Construit l'image d'une matrice 2×2.
+    """Construit l'image d'une matrice carrée.
+
+    Le côté est le nombre de classes. Une matrice binaire reste 2×2.
 
     Parameters
     ----------
@@ -62,15 +64,16 @@ def confusion_matrix_figure(matrix, title: str, *, normalized: bool = False) -> 
     else:
         image = ax.imshow(values, cmap="Blues")
     figure.colorbar(image, ax=ax)
-    ax.set_xticks([0, 1], labels=["0", "1"])
-    ax.set_yticks([0, 1], labels=["0", "1"])
+    labels = [str(index) for index in range(values.shape[0])]
+    ax.set_xticks(range(values.shape[0]), labels=labels)
+    ax.set_yticks(range(values.shape[0]), labels=labels)
     ax.set_xlabel("Classe prédite")
     ax.set_ylabel("Classe réelle")
     ax.set_title(title)
 
     darkest = values.max() if values.size else 0
-    for row in range(2):
-        for column in range(2):
+    for row in range(values.shape[0]):
+        for column in range(values.shape[1]):
             value = values[row, column]
             color = "white" if darkest and value > darkest / 2 else "black"
             label = f"{value:.2f}" if normalized else f"{int(value)}"

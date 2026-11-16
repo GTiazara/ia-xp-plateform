@@ -19,10 +19,13 @@ from ia_xp_plateform.factory import (
     create_logger,
     create_model,
     create_preprocessing,
+    create_task,
 )
 from ia_xp_plateform.transform.pipeline import Preprocessing
 from ia_xp_plateform.factory.logger_factory import LOGGER_DIR_KEYS
 from ia_xp_plateform.models.base import BaseModel
+from ia_xp_plateform.task.binary import BinaryTask
+from ia_xp_plateform.task.multiclass import MulticlassTask
 
 
 def add_data_arguments(parser: argparse.ArgumentParser, *, require_target: bool) -> None:
@@ -186,6 +189,17 @@ def build_model(args: argparse.Namespace, input_features: int) -> BaseModel:
             f"attributs sont au nombre de {input_features}."
         )
     return create_model(args.model, **model_kwargs(args, input_features))
+
+
+def build_task(args: argparse.Namespace) -> BinaryTask | MulticlassTask | None:
+    """Tâche nommée par la configuration, ou None pour le défaut binaire.
+
+    La commande argparse n'a pas de drapeau de tâche : sans l'attribut
+    `task`, le module construit lui-même la tâche binaire.
+    """
+    if not hasattr(args, "task"):
+        return None
+    return create_task(args.task, loss=args.loss)
 
 
 def read_table(path: str | Path, hdf_key: str | None) -> pd.DataFrame:

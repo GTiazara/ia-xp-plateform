@@ -52,6 +52,8 @@ def test_classification_module_trains_perceptron_with_table_datamodule(
     assert 0.0 <= trainer.callback_metrics["val_precision"] <= 1.0
     assert 0.0 <= trainer.callback_metrics["val_recall"] <= 1.0
     assert 0.0 <= trainer.callback_metrics["val_f1"] <= 1.0
+    assert 0.0 <= trainer.callback_metrics["val_ap"] <= 1.0
+    assert -1.0 <= trainer.callback_metrics["val_mcc"] <= 1.0
     assert (Path(tmp_path) / "checkpoints" / "best-model.ckpt").is_file()
 
 

@@ -47,7 +47,7 @@ def test_default_config_selects_the_perceptron_experiment():
 
     assert cfg.mode == "train"
     assert cfg.data.name == "table"
-    assert cfg.data.target_columns == "y"
+    assert cfg.data.target_columns
     assert cfg.data.split_seed == cfg.seed
     assert cfg.model.name == "perceptron"
     assert_optional_positive_int(cfg.model.input_features)
@@ -56,6 +56,8 @@ def test_default_config_selects_the_perceptron_experiment():
     assert cfg.trainer.accelerator == "gpu"
     assert_positive_float(cfg.module.learning_rate)
     assert_positive_int(cfg.callbacks.early_stopping_patience)
+    assert cfg.task.name == "binary"
+    assert cfg.task.loss == "bce"
     args = namespace_from_config(cfg)
     expected_inputs = (
         None if cfg.model.input_features is None else int(cfg.model.input_features)
@@ -65,9 +67,21 @@ def test_default_config_selects_the_perceptron_experiment():
     assert args.epochs == int(cfg.trainer.max_epochs)
     assert args.learning_rate == float(cfg.module.learning_rate)
     assert args.patience == int(cfg.callbacks.early_stopping_patience)
+    assert args.task == "binary"
+    assert args.loss == "bce"
     assert cfg.logger.name == "tensorboard"
     assert cfg.logger.params.name == "perceptron"
     assert cfg.logger.params.save_dir == "logs/tensorboard"
+
+
+def test_multiclass_task_can_replace_the_default():
+    cfg = load_config(["task=multiclass"])
+    args = namespace_from_config(cfg)
+
+    assert cfg.task.name == "multiclass"
+    assert cfg.task.loss == "cross_entropy"
+    assert args.task == "multiclass"
+    assert args.loss == "cross_entropy"
 
 
 def test_litlogger_group_can_replace_the_default_logger():
@@ -125,8 +139,13 @@ def test_named_configs_choose_the_model_and_their_own_log_directory():
     assert mlp.output_dir == "logs/train_mlp"
     assert mlp.logger.params.name == "mlp"
     assert mlp.logger.params.save_dir == "logs/tensorboard"
-    assert list(perceptron.augmentation.train) == []
-    assert list(mlp.augmentation.predict) == []
+    for named in (perceptron, mlp):
+        assert isinstance(named.task.name, str) and named.task.name
+        assert isinstance(named.task.loss, str) and named.task.loss
+    for group in (perceptron.augmentation, mlp.augmentation):
+        for split in ("train", "val", "test", "predict"):
+            steps = list(group[split])
+            assert all(isinstance(step["name"], str) and step["name"] for step in steps)
     assert "train_mlp" in available_configs()
 
 

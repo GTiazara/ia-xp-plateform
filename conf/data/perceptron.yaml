@@ -8,10 +8,11 @@ name: table
 
 # À remplacer par le fichier réel, ou en ligne de commande :
 # data.data_path=chemin/data.csv
-data_path: /home/GTiazara/Documents/workspace/get_experience_project/IA_DATA_FORMAT_CONVERTER/data/output/bank-full-ordinal.feather
+data_path: /home/GTiazara/Documents/workspace/get_experience_project/IA_DATA_FORMAT_CONVERTER/data/output/iris.csv
+#/home/GTiazara/Documents/workspace/get_experience_project/IA_DATA_FORMAT_CONVERTER/data/output/bank-full-ordinal.feather
 #/home/GTiazara/Documents/workspace/get_experience_project/IA_DATA_FORMAT_CONVERTER/data/output/bank-full-job_marry.feather
 #/home/GTiazara/Documents/workspace/get_experience_project/IA_DATA_FORMAT_CONVERTER/data/output/bank-full-duration.feather
-target_columns: y
+target_columns: target
 feature_columns: null
 
 # null : le datamodule découpe lui-même. Sinon, chemin du fichier split

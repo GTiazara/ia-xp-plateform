@@ -9,6 +9,7 @@ defaults:
   - model: perceptron
   - trainer: default
   - module: classification
+  - task: binary
   - callbacks: default
   - logger: tensorboard
   - augmentation: none

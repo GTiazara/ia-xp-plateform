@@ -55,6 +55,8 @@ def namespace_from_config(cfg: DictConfig) -> SimpleNamespace:
         hidden_layers=None if hidden_layers is None else int(hidden_layers),
         threshold=float(cfg.module.threshold),
         learning_rate=float(cfg.module.learning_rate),
+        task=str(cfg.task.name),
+        loss=str(cfg.task.loss),
         accelerator=str(cfg.trainer.accelerator),
         devices=int(cfg.trainer.devices),
         min_epochs=int(cfg.trainer.min_epochs),

@@ -13,21 +13,23 @@ MLP ou un autre réseau : le module d'entraînement ne change pas.
 
 import pytorch_lightning as pl
 import torch
-from torch import nn
 
+from ia_xp_plateform.factory.task_factory import create_task
 from ia_xp_plateform.metric import (
-    BinaryClassificationMetrics,
     confusion_matrix_figure,
     normalize_confusion_matrix,
 )
 from ia_xp_plateform.models.base import BaseModel
+from ia_xp_plateform.task.binary import BinaryTask
+from ia_xp_plateform.task.multiclass import MulticlassTask
 
 
 class ClassificationModule(pl.LightningModule):
-    """Tâche de classification binaire autour d'un `BaseModel`.
+    """Entraînement d'un `BaseModel` pour la tâche reçue.
 
-    Le modèle reçu doit renvoyer une probabilité entre 0 et 1, de même
-    forme que la cible `y` (comme le fait `Perceptron` avec sa sigmoïde).
+    Le modèle reçu doit renvoyer des logits. La tâche en fait une
+    probabilité, une perte et une classe. Sans tâche nommée, c'est la
+    tâche binaire qui est utilisée.
     """
 
     def __init__(
@@ -35,18 +37,23 @@ class ClassificationModule(pl.LightningModule):
         model: BaseModel,
         learning_rate: float = 1e-2,
         threshold: float = 0.5,
+        task: BinaryTask | MulticlassTask | None = None,
     ) -> None:
         """Initialise la tâche de classification.
 
         Parameters
         ----------
         model : BaseModel
-            N'importe quel modèle qui respecte le contrat `BaseModel`.
+            N'importe quel modèle qui respecte le contrat `BaseModel`
+            et renvoie des logits.
         learning_rate : float, optional
             Taux d'apprentissage de l'optimiseur Adam. Par défaut `1e-2`.
         threshold : float, optional
             Seuil au-dessus duquel la probabilité devient la classe `1`.
             Par défaut `0.5`.
+        task : BinaryTask | MulticlassTask | None, optional
+            Tâche qui calcule la perte, la probabilité et les métriques.
+            Par défaut, la tâche binaire et sa perte `bce`.
         """
         super().__init__()
         if not isinstance(model, BaseModel):
@@ -66,20 +73,21 @@ class ClassificationModule(pl.LightningModule):
         self.model = model
         self.learning_rate = learning_rate
         self.threshold = threshold
-        # `BCELoss` attend une probabilité entre 0 et 1, ce que renvoie
-        # déjà `Perceptron` après sa sigmoïde.
-        self.criterion = nn.BCELoss()
-        # Un compteur par étape. Le calcul (justesse, précision, rappel,
-        # F1) vit dans `metric` : ce module ne fait que l'appeler puis
-        # journaliser les noms `train_acc`, `val_precision`, `val_f1`, ...
+        # La tâche porte la sigmoïde et la perte. Le critère est aussi
+        # un attribut du module : le résumé Lightning continue de l'afficher.
+        self.task = create_task("binary") if task is None else task
+        self.criterion = self.task.criterion
+        # Un compteur par étape, choisi par la tâche. Le module
+        # journalise chaque clef de `compute()` : `val_ap` n'existe que
+        # si la tâche binaire la fournit.
         self.metrics = {
-            stage: BinaryClassificationMetrics()
+            stage: self.task.new_metrics()
             for stage in ("train", "val", "test")
         }
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Délègue le calcul au modèle sous-jacent."""
-        return self.model(x)
+        """Probabilité de la tâche appliquée aux logits du modèle."""
+        return self.task.probabilities(self.model(x))
 
     def _step(
         self,
@@ -88,14 +96,14 @@ class ClassificationModule(pl.LightningModule):
     ) -> torch.Tensor:
         """Calcule la perte et alimente les métriques de l'étape.
 
-        La justesse, la précision, le rappel et le F1 sont journalisés
-        en fin d'époque, sous `{stage}_acc`, `{stage}_precision`,
-        `{stage}_recall` et `{stage}_f1`.
+        Les noms journalisés sont ceux que `compute()` de la tâche
+        renvoie, préfixés par l'étape.
         """
         x, y = batch
-        probabilities = self(x)
-        loss = self.criterion(probabilities, y)
-        self.metrics[stage].update(probabilities, y, self.threshold)
+        logits = self.model(x)
+        loss = self.task.loss(logits, y)
+        probabilities = self.task.probabilities(logits)
+        self.task.observe(self.metrics[stage], probabilities, y, self.threshold)
 
         # `val_loss` est le nom attendu par `ModelCheckpoint` et
         # `EarlyStopping` dans `create_callbacks`.

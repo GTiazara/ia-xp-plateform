@@ -1,10 +1,10 @@
 """
 
 Un perceptron est le plus simple des réseaux de neurones artificiels : il
-combine ses entrées par une somme pondérée (+ un biais), puis une fonction
-d'activation transforme cette somme en décision. Il respecte le contrat
-`BaseModel` : un Trainer qui l'utilise n'a besoin de rien savoir de plus
-que `forward(x) -> torch.Tensor`.
+combine ses entrées par une somme pondérée (+ un biais). Cette somme est
+le logit. La tâche, pas le perceptron, la transforme en probabilité.
+Il respecte le contrat `BaseModel` : un Trainer qui l'utilise n'a besoin
+de rien savoir de plus que `forward(x) -> torch.Tensor`.
 
 """
 
@@ -49,10 +49,8 @@ class Perceptron(BaseModel):
         Returns
         -------
         torch.Tensor
-            Tenseur de forme `(batch,)` contenant le logit (avant activation)
-            de la décision "accélérer".
+            Tenseur de forme `(batch, output_features)` : le logit, avant
+            que la tâche n'y applique une sigmoïde.
         """
-        logits = self.linear(x)
-        # La fonction sigmoïde transforme le logit en une probabilité.
-        return torch.sigmoid(logits)
+        return self.linear(x)
 

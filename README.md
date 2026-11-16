@@ -92,22 +92,22 @@ dataset = TableDataset(dataframe, target_columns="y")
 sous-classe qui oublie `forward` ne peut pas être instanciée.
 
 Un entraîneur n'a donc besoin que de ce contrat : appeler `model(x)` et
-récupérer un tenseur. Le nombre de couches, l'activation ou le nom de la
-classe restent un détail du modèle. `parameters()`, `.to(device)` et
-`state_dict()` restent disponibles, parce que `BaseModel` est un
-`nn.Module`.
+récupérer un tenseur. Le nombre de couches ou le nom de la classe
+restent un détail du modèle. L'activation de sortie appartient à la
+tâche, pas au modèle. `parameters()`, `.to(device)` et `state_dict()`
+restent disponibles, parce que `BaseModel` est un `nn.Module`.
 
 ## 4. Le perceptron
 
 `Perceptron` est un `BaseModel` à une seule couche linéaire (poids + biais).
-`forward` calcule la somme pondérée, puis une sigmoïde la transforme en
-probabilité entre 0 et 1.
+`forward` calcule la somme pondérée et renvoie ce logit. La tâche
+binaire le transforme en probabilité par une sigmoïde.
 
 ```python
 from ia_xp_plateform.models import Perceptron
 
 model = Perceptron(input_features=2, output_features=1)
-probabilite = model(x)  # (batch, 1)
+logit = model(x)  # (batch, 1), avant la sigmoïde
 ```
 
 ## 4.1. Le MLP
@@ -115,10 +115,10 @@ probabilite = model(x)  # (batch, 1)
 `MLP`, dans `models/mlp.py`, empile `hidden_layers` couches cachées
 (1 par défaut), chacune de largeur `hidden_features` (16 par défaut).
 Chaque couche cachée
-est une couche linéaire suivie d'une ReLU. La dernière couche, puis
-une sigmoïde, donne `output_features` probabilités entre 0 et 1. Avec
-`output_features=1`, `ClassificationModule` l'entraîne comme le
-perceptron.
+est une couche linéaire suivie d'une ReLU. La dernière couche donne
+`output_features` logits, sans sigmoïde. La tâche binaire applique
+cette sigmoïde. Avec `output_features=1`, `ClassificationModule`
+l'entraîne comme le perceptron.
 
 ```python
 from ia_xp_plateform.factory import create_model
@@ -161,7 +161,9 @@ Le découpage train / val / test se fait de deux façons.
 Sans fichier de split, il mélange les lignes (`split_seed`, 42 par défaut)
 puis en garde 20 % pour la validation (`val_split`) et 10 % pour le test
 (`test_split`). Le reste va à l'entraînement. Le fichier doit quand même
-contenir la colonne `id`.
+contenir la colonne `id`. La commande d'entraînement reprend cette graine
+pour l'initialisation des poids et l'ordre des batches. Le découpage
+garde les mêmes lignes : il mélange avec son propre générateur.
 
 ```python
 from ia_xp_plateform.data.datamodule import TableDataModule
@@ -303,6 +305,8 @@ nom et des paramètres.
 | `"tensorboard"` | `TensorBoardLogger` (logger par défaut) |
 | `"litlogger"` | `LitLogger` |
 | `"standardize"`, `"min_max"`, `"clip"`, `"gaussian_noise"` | transformation d'entrée (`create_transform`) |
+| `"binary"` | tâche binaire (`create_task`) : sigmoïde, perte sur les logits, seuil |
+| `"multiclass"` | tâche multiclasse (`create_task`) : softmax, entropie croisée, argmax |
 
 ```python
 from ia_xp_plateform.factory import create_datamodule, create_model
@@ -342,12 +346,22 @@ exige un logger sur le `Trainer`.
 
 Un `BaseModel` ne sait pas calculer une perte ni mettre ses poids à
 jour. `ClassificationModule` porte cette tâche pour n'importe quel
-`BaseModel` qui renvoie une probabilité entre 0 et 1 : perte `BCELoss`,
-optimiseur Adam, et journalisation de `train_loss`, `val_loss`,
+`BaseModel` qui renvoie un logit. La tâche binaire applique la
+sigmoïde, calcule l'entropie croisée binaire sur ces logits, et décide
+la classe avec le seuil du module. Une cible hors de l'intervalle
+admis, ou dont la forme diffère de celle des logits, est refusée avant
+la perte. La tâche multiclasse applique un softmax, calcule
+l'entropie croisée sur les logits, et prend pour classe l'indice du
+plus grand logit. Sa précision, son rappel et son F1 sont la moyenne
+des classes du modèle, y compris une classe absente de l'époque. Elle
+ne publie pas d'average precision. L'optimiseur est Adam. Le module
+journalise les noms que la tâche fournit, donc pour la tâche binaire
+`train_loss`, `val_loss`,
 `test_loss`, `train_acc`, `val_acc`, `test_acc`, puis, sur l'époque
 entière, `train_precision`, `val_precision`, `test_precision`,
 `train_recall`, `val_recall`, `test_recall`, `train_f1`, `val_f1`,
-`test_f1`. À chaque époque, le
+`test_f1`, `train_ap`, `val_ap`, `test_ap`, `train_mcc`, `val_mcc`,
+`test_mcc`. À chaque époque, le
 module envoie aussi deux images à TensorBoard (onglet Images).
 `train_confusion_matrix` et `val_confusion_matrix` sont les effectifs.
 `train_confusion_matrix_normalized` et
@@ -356,11 +370,10 @@ la part des prédictions dans chaque classe réelle. Une classe absente
 reste à 0. Les lignes sont la classe réelle, les colonnes la classe
 prédite.
 
-Ces chiffres ne sont pas calculés ici. Le module appelle
-`BinaryClassificationMetrics` (`ia_xp_plateform/metric`) : `reset` au
-début de l'époque, `update` à chaque lot, `compute` à la fin. Un futur
-module de régression branchera un autre objet de métriques. La perte
-et l'optimiseur restent dans le module.
+Ces chiffres ne sont pas calculés ici. La tâche fournit l'objet de
+métriques (`ia_xp_plateform/metric`) : `reset` au début de l'époque,
+`update` à chaque lot, `compute` à la fin. La perte et l'optimiseur
+restent dans le module.
 
 La précision est la part de vrais positifs parmi les exemples annoncés
 positifs. Le rappel est la part des positifs réels qui ont été
@@ -368,6 +381,12 @@ retrouvés. Le F1 est leur moyenne harmonique : il baisse dès que l'un
 des deux baisse, et vaut 0 quand il n'y a aucun vrai positif. La
 précision et le rappel valent 0 quand leur dénominateur est nul
 (aucun positif annoncé, ou aucun positif dans l'époque).
+L'average precision (`ap`) ignore le seuil : elle reste informative
+quand le F1 vaut 0 parce que les probabilités classent quand même les
+positifs devant les négatifs. Le coefficient de Matthews (`mcc`)
+utilise les quatre cases de la matrice. Il vaut 0 quand le modèle
+répond toujours d'une seule classe, 1 quand chaque prédiction est
+juste, et -1 quand chacune est fausse.
 
 `val_loss` est le nom attendu par `create_callbacks` : le module et les
 callbacks se branchent ensemble sans réglage supplémentaire.
@@ -388,7 +407,13 @@ Changer de modèle plus tard (un MLP par exemple) ne touche pas à
 Prédire avec un modèle entraîné ne demande ni `Trainer`, ni datamodule,
 ni perte, ni optimiseur : seulement l'architecture (un `BaseModel`) et ses
 poids. `Predictor` réunit les deux et se sert du checkpoint écrit pendant
-l'entraînement (`output_dir/checkpoints/best-model.ckpt`).
+l'entraînement (`output_dir/checkpoints/best-model.ckpt`). Le modèle
+renvoie un logit. Pour la tâche binaire, `predict_proba` publie la
+sigmoïde de ce logit, et le CSV à une sortie garde `id`, `probability`
+et `prediction`. Pour la tâche multiclasse, `predict_proba` publie le
+softmax et `predict` l'indice du plus grand logit. Le CSV contient
+alors `prediction` et une colonne `probability_k` par classe. La
+prédiction doit nommer la même tâche que l'entraînement.
 
 ```python
 import torch
@@ -408,8 +433,9 @@ predictor.predict(x)        # classes 0 ou 1, forme (2, 1)
 Le checkpoint ne contient que les poids : `model_name` et `model_kwargs`
 doivent être ceux de l'entraînement. Si les poids ne correspondent pas à
 l'architecture demandée, une erreur explicite est levée. `Predictor`
-passe le modèle en mode évaluation, coupe les gradients, et applique le
-même seuil que `ClassificationModule` (`threshold`, `0.5` par défaut).
+passe le modèle en mode évaluation, coupe les gradients, et applique
+à la probabilité le même seuil que `ClassificationModule`
+(`threshold`, `0.5` par défaut).
 
 Pour un modèle déjà construit, `Predictor(model, threshold=0.5)` suffit.
 Les entrées sont des tenseurs `(batch, n_features)` ; les colonnes
@@ -462,6 +488,9 @@ conf/
 │   └── default.yaml             # époques, appareil
 ├── module/
 │   └── classification.yaml      # taux d'apprentissage, seuil
+├── task/
+│   ├── binary.yaml              # tâche binaire, perte sur les logits
+│   └── multiclass.yaml          # tâche multiclasse, entropie croisée
 ├── callbacks/
 │   └── default.yaml             # patience de l'arrêt anticipé
 ├── augmentation/
@@ -556,10 +585,10 @@ test/
 ```
 
 - `test/unitaire/` couvre `BaseDataset`, `TableDataset`, `BaseModel`,
-  `Perceptron`, `MLP`, `ClassificationModule`, `BinaryClassificationMetrics`
+  `Perceptron`, `MLP`, `ClassificationModule`, `BinaryTask`, `BinaryClassificationMetrics`
   (précision, rappel, F1, matrice de confusion), `Predictor` (checkpoints
   fabriqués à la main, chaque cas d'erreur), les factories
-  (`create_model`, `create_datamodule`, `create_logger`, `create_transform`), `create_callbacks`, et les
+  (`create_model`, `create_datamodule`, `create_logger`, `create_transform`, `create_task`), `create_callbacks`, et les
   fonctions internes de `TableDataModule` (lecture de fichier,
   découpage automatique, jointure par `id_column`, et chaque cas
   d'erreur : id manquant, dupliqué, colonne absente, valeur de split
