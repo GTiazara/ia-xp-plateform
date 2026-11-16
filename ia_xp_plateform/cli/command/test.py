@@ -2,13 +2,19 @@
 
 import argparse
 
-from ia_xp_plateform.cli.command.common import build_datamodule, build_model, make_trainer
+from ia_xp_plateform.cli.command.common import (
+    apply_saved_preprocessing,
+    build_datamodule,
+    build_model,
+    make_trainer,
+)
 from ia_xp_plateform.module import ClassificationModule
 
 
 def run_test(args: argparse.Namespace) -> None:
     """Charge le checkpoint et calcule la perte et la précision de test."""
     datamodule = build_datamodule(args)
+    apply_saved_preprocessing(datamodule.preprocessing, args.checkpoint, "test")
     datamodule.setup()
     if datamodule.test_dataset is None:
         raise ValueError(

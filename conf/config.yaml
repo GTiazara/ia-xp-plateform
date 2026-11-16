@@ -15,6 +15,7 @@ defaults:
   - module: classification
   - callbacks: default
   - logger: tensorboard
+  - augmentation: none
   - _self_
 
 # train | test | predict

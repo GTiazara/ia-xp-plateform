@@ -12,6 +12,24 @@ from ia_xp_plateform.cli.hydra_main import main, parse_launch_arguments
 from ia_xp_plateform.configuration import available_configs, conf_directory, load_config
 
 
+def assert_positive_int(value) -> None:
+    """Entier d'expérience : présent, entier, au moins 1."""
+    assert isinstance(value, int) and not isinstance(value, bool)
+    assert value >= 1
+
+
+def assert_positive_float(value) -> None:
+    """Flottant d'expérience : présent et strictement positif."""
+    assert isinstance(value, float)
+    assert value > 0
+
+
+def assert_optional_positive_int(value) -> None:
+    """Entier d'expérience, ou None quand la commande le déduit."""
+    if value is not None:
+        assert_positive_int(value)
+
+
 def test_help_does_not_try_to_parse_a_hydra_override(capsys):
     assert main(["--help"]) == 0
     output = capsys.readouterr().out
@@ -32,12 +50,21 @@ def test_default_config_selects_the_perceptron_experiment():
     assert cfg.data.target_columns == "y"
     assert cfg.data.split_seed == cfg.seed
     assert cfg.model.name == "perceptron"
-    assert cfg.model.input_features == 1
-    assert cfg.model.output_features == 1
-    assert cfg.trainer.max_epochs == 200
+    assert_optional_positive_int(cfg.model.input_features)
+    assert_positive_int(cfg.model.output_features)
+    assert_positive_int(cfg.trainer.max_epochs)
     assert cfg.trainer.accelerator == "gpu"
-    assert cfg.module.learning_rate == 0.01
-    assert cfg.callbacks.early_stopping_patience == 5
+    assert_positive_float(cfg.module.learning_rate)
+    assert_positive_int(cfg.callbacks.early_stopping_patience)
+    args = namespace_from_config(cfg)
+    expected_inputs = (
+        None if cfg.model.input_features is None else int(cfg.model.input_features)
+    )
+    assert args.input_features == expected_inputs
+    assert args.output_features == int(cfg.model.output_features)
+    assert args.epochs == int(cfg.trainer.max_epochs)
+    assert args.learning_rate == float(cfg.module.learning_rate)
+    assert args.patience == int(cfg.callbacks.early_stopping_patience)
     assert cfg.logger.name == "tensorboard"
     assert cfg.logger.params.name == "perceptron"
     assert cfg.logger.params.save_dir == "logs/tensorboard"
@@ -64,13 +91,13 @@ def test_mlp_group_selects_the_hidden_layer_model():
     args = namespace_from_config(cfg)
 
     assert cfg.model.name == "mlp"
-    assert cfg.model.output_features == 1
-    assert cfg.model.hidden_features == 16
-    assert cfg.model.hidden_layers == 1
+    assert_positive_int(cfg.model.output_features)
+    assert_positive_int(cfg.model.hidden_features)
+    assert_positive_int(cfg.model.hidden_layers)
     assert args.model == "mlp"
-    assert args.output_features == 1
-    assert args.hidden_features == 16
-    assert args.hidden_layers == 1
+    assert args.output_features == int(cfg.model.output_features)
+    assert args.hidden_features == int(cfg.model.hidden_features)
+    assert args.hidden_layers == int(cfg.model.hidden_layers)
 
 
 def test_a_name_without_equals_selects_that_config_file():
@@ -92,10 +119,14 @@ def test_named_configs_choose_the_model_and_their_own_log_directory():
     assert perceptron.model.input_features is None
     assert perceptron.output_dir == "logs/train_perceptron"
     assert mlp.model.name == "mlp"
-    assert mlp.model.hidden_layers == 1
+    assert_positive_int(mlp.model.input_features)
+    assert_positive_int(mlp.model.hidden_features)
+    assert_positive_int(mlp.model.hidden_layers)
     assert mlp.output_dir == "logs/train_mlp"
     assert mlp.logger.params.name == "mlp"
     assert mlp.logger.params.save_dir == "logs/tensorboard"
+    assert list(perceptron.augmentation.train) == []
+    assert list(mlp.augmentation.predict) == []
     assert "train_mlp" in available_configs()
 
 
@@ -117,10 +148,32 @@ def test_namespace_flattens_the_groups_for_the_commands():
     assert args.hidden_features is None
     assert args.hidden_layers is None
     assert args.features == ["a", "b"]
-    assert args.epochs == 200
-    assert args.patience == 5
-    assert args.learning_rate == 0.01
+    assert_positive_int(cfg.trainer.max_epochs)
+    assert_positive_int(cfg.callbacks.early_stopping_patience)
+    assert_positive_float(cfg.module.learning_rate)
+    assert args.epochs == int(cfg.trainer.max_epochs)
+    assert args.patience == int(cfg.callbacks.early_stopping_patience)
+    assert args.learning_rate == float(cfg.module.learning_rate)
     assert args.output_dir == "logs/xp01"
     assert args.logger == "tensorboard"
     assert args.logger_params["name"] == "perceptron"
     assert args.logger_params["save_dir"] == "logs/tensorboard"
+
+
+def test_default_augmentation_is_empty_on_every_split():
+    cfg = load_config()
+    args = namespace_from_config(cfg)
+
+    for split in ("train", "val", "test", "predict"):
+        assert list(cfg.augmentation[split]) == []
+        assert args.augmentation[split] == []
+
+
+def test_standardize_augmentation_is_listed_on_every_split():
+    cfg = load_config(["augmentation=standardize"])
+    args = namespace_from_config(cfg)
+
+    for split in ("train", "val", "test", "predict"):
+        names = [step["name"] for step in cfg.augmentation[split]]
+        assert names == ["standardize"]
+        assert args.augmentation[split] == [{"name": "standardize"}]

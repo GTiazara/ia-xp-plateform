@@ -1,0 +1,11 @@
+# Centre et réduit chaque colonne d'entrée. Les statistiques sont
+# apprises sur train et rejouées sur val, test et predict.
+
+train:
+  - name: standardize
+val:
+  - name: standardize
+test:
+  - name: standardize
+predict:
+  - name: standardize

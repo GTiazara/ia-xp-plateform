@@ -27,9 +27,15 @@ ia_xp_plateform/
 │   │   └── table_dataset.py
 │   └── datamodule/
 │       └── table_datamodule.py  # lecture CSV, Feather, HDF5
+├── transform/
+│   ├── base.py                  # contrat : tenseur vers tenseur
+│   ├── scaling.py               # standardize, min_max
+│   ├── elementwise.py           # clip, gaussian_noise
+│   └── pipeline.py              # un pipeline par split
 ├── factory/
 │   ├── model_factory.py         # nom -> BaseModel
 │   ├── datamodule_factory.py    # nom -> LightningDataModule
+│   ├── transform_factory.py     # nom -> transformation
 │   └── logger_factory.py        # nom -> logger Lightning
 ├── callback/
 │   └── callbacks.py             # checkpoint, arrêt anticipé, taux d'apprentissage
@@ -45,6 +51,10 @@ ia_xp_plateform/
     ├── hydra_main.py            # ia-xp-conf, surcharges Hydra
     └── command/
 ```
+
+`doc/audit_phase_a.md` dresse l'état des lieux de l'application :
+architecture, fonctionnalités, dépendances, risques, et le contexte
+à donner à un assistant IA avant de modifier le code.
 
 ## 1. Le dataset de base
 
@@ -219,6 +229,66 @@ d'entraînement (toutes sauf la cible et `id_column`, sauf si
 `feature_columns` est donné) puis réutilisées pour la validation et le
 test.
 
+## 5.1. Le prétraitement des entrées
+
+Les colonnes d'un tableau n'ont pas la même échelle. Une transformation
+remet les entrées dans un ordre de grandeur commun avant le modèle. Elle
+reçoit un tenseur et en rend un de même forme : le contrat ne suppose
+pas des colonnes, pour qu'un futur jeu raster le réutilise.
+
+Quatre transformations sont disponibles, choisies par leur nom :
+
+| Nom | Effet |
+| --- | --- |
+| `standardize` | Centre et réduit chaque colonne. Apprend moyenne et écart-type. |
+| `min_max` | Ramène chaque colonne apprise dans `[0, 1]`. Une valeur hors plage n'est pas tronquée. |
+| `clip` | Borne chaque valeur. Paramètres `min` et `max`, au moins un des deux. N'apprend rien. |
+| `gaussian_noise` | Ajoute un bruit normal. Paramètre `std`, strictement positif. N'apprend rien. |
+
+`standardize` et `min_max` apprennent sur le jeu d'entraînement
+seulement. `val`, `test` et `predict` reprennent l'état de la
+transformation de même nom dans `train`. Une colonne constante devient
+0, sans division par zéro. L'identifiant et la cible ne sont jamais
+transformés.
+
+`gaussian_noise` est fait pour `train` : le tirage change à chaque
+lecture d'un exemple, donc à chaque époque. Le placer dans `val` ou
+`test` rend les métriques instables.
+
+Le groupe `conf/augmentation/` décrit quatre listes, `train`, `val`,
+`test` et `predict`. `none` les laisse vides : c'est le défaut, les
+entrées restent celles du fichier. `standardize` met une standardisation
+dans chaque liste.
+
+```bash
+poetry run ia-xp-conf augmentation=standardize
+```
+
+```yaml
+train:
+  - name: clip
+    min: 0
+    max: 10
+  - name: standardize
+val:
+  - name: clip
+    min: 0
+    max: 10
+  - name: standardize
+```
+
+L'ordre compte : ici `standardize` apprend sur les valeurs déjà bornées.
+À la fin de `train`, l'état est écrit à côté du checkpoint, sous le
+même nom : `best-model.preprocessing.json` à côté de
+`best-model.ckpt`. Un second entraînement dans le même dossier écrit
+`best-model-v1.preprocessing.json` et ne touche pas le premier.
+`test` et `predict` relisent le fichier du checkpoint qu'on leur donne,
+sans rien réapprendre. S'il manque, ou si le pipeline demande une
+transformation absente de ce fichier, la commande échoue en le nommant.
+
+La commande `ia-xp` (argparse) ne prétraite pas : seul le lancement
+depuis `conf/` lit le groupe `augmentation`.
+
 ## 6. Les factories
 
 Une factory construit un objet à partir de son nom. Le code qui lance une
@@ -232,6 +302,7 @@ nom et des paramètres.
 | `"table"` | `TableDataModule` |
 | `"tensorboard"` | `TensorBoardLogger` (logger par défaut) |
 | `"litlogger"` | `LitLogger` |
+| `"standardize"`, `"min_max"`, `"clip"`, `"gaussian_noise"` | transformation d'entrée (`create_transform`) |
 
 ```python
 from ia_xp_plateform.factory import create_datamodule, create_model
@@ -393,6 +464,9 @@ conf/
 │   └── classification.yaml      # taux d'apprentissage, seuil
 ├── callbacks/
 │   └── default.yaml             # patience de l'arrêt anticipé
+├── augmentation/
+│   ├── none.yaml                # aucun prétraitement, choix par défaut
+│   └── standardize.yaml         # standardise train, val, test et predict
 └── logger/
     ├── tensorboard.yaml         # suivi par défaut, local
     └── litlogger.yaml           # suivi en ligne, lightning.ai
@@ -485,12 +559,15 @@ test/
   `Perceptron`, `MLP`, `ClassificationModule`, `BinaryClassificationMetrics`
   (précision, rappel, F1, matrice de confusion), `Predictor` (checkpoints
   fabriqués à la main, chaque cas d'erreur), les factories
-  (`create_model`, `create_datamodule`, `create_logger`), `create_callbacks`, et les
+  (`create_model`, `create_datamodule`, `create_logger`, `create_transform`), `create_callbacks`, et les
   fonctions internes de `TableDataModule` (lecture de fichier,
   découpage automatique, jointure par `id_column`, et chaque cas
   d'erreur : id manquant, dupliqué, colonne absente, valeur de split
-  inconnue), le parseur du CLI, et la composition Hydra de `conf/`
+  inconnue), les transformations d'entrée (`standardize`, `min_max`,
+  `clip`, `gaussian_noise`) et leurs pipelines, le parseur du CLI, et la composition Hydra de `conf/`
   (groupes par défaut, interpolation `${seed}`, surcharge, groupe inconnu).
+  Cette composition est vérifiée sans figer les nombres des fichiers
+  d'expérience.
 - `test/integration/` couvre `TableDataModule` de bout en bout (fichier
   réel sur disque, 3 formats, les deux modes de split), l'enchaînement
   factory → datamodule → `DataLoader` → modèle, un `Trainer.fit` complet
@@ -500,4 +577,5 @@ test/
   puis `predict` du CLI, le même parcours lancé depuis `conf/`,
   les fichiers d'événements TensorBoard écrits par défaut, la
   conservation des expériences passées (`version_0`, `version_1`), et
-  le choix de LitLogger par surcharge.
+  le choix de LitLogger par surcharge, et un entraînement standardisé
+  dont `test` et `predict` rejouent l'état écrit à côté du checkpoint.

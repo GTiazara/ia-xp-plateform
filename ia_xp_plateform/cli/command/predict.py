@@ -6,6 +6,8 @@ from pathlib import Path
 import pandas as pd
 
 from ia_xp_plateform.cli.command.common import (
+    apply_saved_preprocessing,
+    build_preprocessing,
     feature_columns_of,
     inputs_of,
     model_kwargs,
@@ -30,7 +32,12 @@ def run_predict(args: argparse.Namespace) -> None:
         model_kwargs=model_kwargs(args, len(columns)),
         threshold=args.threshold,
     )
-    probabilities = predictor.predict_proba(inputs_of(dataframe, columns))
+    features = inputs_of(dataframe, columns)
+    preprocessing = build_preprocessing(args)
+    apply_saved_preprocessing(preprocessing, args.checkpoint, "predict")
+    if preprocessing is not None:
+        features = preprocessing.pipeline("predict")(features)
+    probabilities = predictor.predict_proba(features)
     classes = (probabilities >= predictor.threshold).long()
 
     result = pd.DataFrame({args.id_column: dataframe[args.id_column]})

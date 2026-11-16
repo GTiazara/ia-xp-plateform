@@ -3,7 +3,13 @@
 import argparse
 
 from ia_xp_plateform.callback import CallbackConfig, create_callbacks
-from ia_xp_plateform.cli.command.common import build_datamodule, build_model, make_trainer
+from ia_xp_plateform.cli.command.common import (
+    build_datamodule,
+    build_model,
+    make_trainer,
+    preprocessing_path,
+    save_preprocessing,
+)
 from ia_xp_plateform.module import ClassificationModule
 
 
@@ -30,4 +36,9 @@ def run_train(args: argparse.Namespace) -> None:
         callbacks=callbacks,
     )
     trainer.fit(module, datamodule=datamodule)
-    print(trainer.checkpoint_callback.best_model_path)
+    best = trainer.checkpoint_callback.best_model_path
+    if best and datamodule.preprocessing is not None:
+        save_preprocessing(
+            preprocessing_path(best), datamodule.preprocessing.states()
+        )
+    print(best)

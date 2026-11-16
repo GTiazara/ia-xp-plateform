@@ -36,6 +36,7 @@ import torch
 from torch.utils.data import DataLoader
 
 from ia_xp_plateform.data.dataset.table_dataset import TableDataset
+from ia_xp_plateform.transform.pipeline import Preprocessing
 
 # Valeurs attendues dans la colonne `split` du fichier compagnon.
 _SPLIT_NAMES = ("train", "val", "test")
@@ -262,6 +263,7 @@ class TableDataModule(pl.LightningDataModule):
         split_hdf_key: str | None = None,
         batch_size: int = 32,
         num_workers: int = 0,
+        preprocessing: Preprocessing | None = None,
     ) -> None:
         """Configure le datamodule, sans encore rien lire sur le disque.
 
@@ -309,6 +311,11 @@ class TableDataModule(pl.LightningDataModule):
         num_workers : int, optional
             Nombre de processus pour charger les données en parallèle.
             Par défaut 0 (chargement dans le processus principal).
+        preprocessing : Preprocessing | None, optional
+            Pipelines d'entrée par split. Les statistiques s'apprennent
+            sur le jeu d'entraînement, une seule fois, sauf si l'objet
+            est déjà `fitted`. L'identifiant et la cible ne passent pas
+            par ces pipelines. Par défaut, aucune transformation.
         """
         super().__init__()
 
@@ -325,6 +332,7 @@ class TableDataModule(pl.LightningDataModule):
         self.split_hdf_key = hdf_key if split_hdf_key is None else split_hdf_key
         self.batch_size = batch_size
         self.num_workers = num_workers
+        self.preprocessing = preprocessing
 
         self.train_dataset: TableDataset | None = None
         self.val_dataset: TableDataset | None = None
@@ -396,6 +404,24 @@ class TableDataModule(pl.LightningDataModule):
             if test_df is not None
             else None
         )
+        self._apply_preprocessing()
+
+    def _apply_preprocessing(self) -> None:
+        """Apprend sur les entrées brutes de train, puis branche chaque split.
+
+        `dataset.x` reste brut. Le pipeline s'applique à la lecture d'un
+        exemple. Un prétraitement déjà `fitted` n'est pas réappris : c'est
+        le cas de `test`, qui recharge l'état écrit à l'entraînement.
+        """
+        if self.preprocessing is None:
+            return
+        if not self.preprocessing.fitted:
+            self.preprocessing.fit(self.train_dataset.x)
+        self.train_dataset.transform = self.preprocessing.pipeline("train")
+        if self.val_dataset is not None:
+            self.val_dataset.transform = self.preprocessing.pipeline("val")
+        if self.test_dataset is not None:
+            self.test_dataset.transform = self.preprocessing.pipeline("test")
 
     def train_dataloader(self) -> DataLoader:
         """`DataLoader` d'entraînement (mélangé à chaque époque)."""

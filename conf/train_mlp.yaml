@@ -10,6 +10,7 @@ defaults:
   - module: classification
   - callbacks: default
   - logger: tensorboard
+  - augmentation: standardize #none
   - _self_
 
 mode: train

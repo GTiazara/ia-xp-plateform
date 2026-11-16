@@ -1,0 +1,7 @@
+# Aucun prétraitement. C'est le choix par défaut : les entrées du
+# modèle sont les colonnes du fichier.
+
+train: []
+val: []
+test: []
+predict: []

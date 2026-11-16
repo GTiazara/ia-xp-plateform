@@ -31,6 +31,26 @@ def test_getitem_returns_the_matching_pair():
     assert torch.equal(item_y, y[1])
 
 
+def test_transform_is_applied_to_x_only_and_the_stored_tensor_stays_raw():
+    x = torch.tensor([[1.0, 2.0], [3.0, 4.0]])
+    y = torch.tensor([[0.0], [1.0]])
+
+    dataset = BaseDataset(x, y, transform=lambda features: features * 2)
+    item_x, item_y = dataset[0]
+
+    assert torch.equal(item_x, x[0] * 2)
+    assert torch.equal(item_y, y[0])
+    assert torch.equal(dataset.x, x)
+
+
+def test_without_a_transform_the_example_is_the_stored_tensor():
+    x = torch.tensor([[1.0], [2.0]])
+    y = torch.tensor([[0.0], [1.0]])
+    dataset = BaseDataset(x, y)
+
+    assert torch.equal(dataset[1][0], x[1])
+
+
 def test_rejects_x_and_y_with_different_lengths():
     x = torch.randn(3, 2)
     y = torch.randn(2, 1)

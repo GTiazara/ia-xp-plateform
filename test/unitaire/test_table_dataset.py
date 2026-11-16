@@ -62,3 +62,23 @@ def test_length_matches_the_number_of_rows(dataframe):
     dataset = TableDataset(dataframe, target_columns="target")
 
     assert len(dataset) == len(dataframe)
+
+
+def test_transform_changes_the_features_and_leaves_the_target(dataframe):
+    dataset = TableDataset(
+        dataframe,
+        target_columns="target",
+        transform=lambda features: features + 10,
+    )
+    item_x, item_y = dataset[0]
+
+    assert torch.equal(item_x, dataset.x[0] + 10)
+    assert torch.equal(item_y, dataset.y[0])
+    assert torch.equal(dataset.x[0], torch.tensor([1.0, 4.0]))
+
+
+def test_without_a_transform_the_row_matches_the_table(dataframe):
+    dataset = TableDataset(dataframe, target_columns="target")
+
+    assert torch.equal(dataset[1][0], dataset.x[1])
+    assert torch.equal(dataset[1][1], dataset.y[1])

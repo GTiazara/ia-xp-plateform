@@ -26,6 +26,11 @@ def namespace_from_config(cfg: DictConfig) -> SimpleNamespace:
     ``args.model``). La configuration, elle, est rangée par groupe.
     """
     logger_group = OmegaConf.to_container(cfg.logger, resolve=True)
+    augmentation = cfg.get("augmentation")
+    if augmentation is None:
+        augmentation = {}
+    else:
+        augmentation = OmegaConf.to_container(augmentation, resolve=True)
     input_features = cfg.model.input_features
     hidden_features = cfg.model.get("hidden_features")
     hidden_layers = cfg.model.get("hidden_layers")
@@ -63,6 +68,7 @@ def namespace_from_config(cfg: DictConfig) -> SimpleNamespace:
         logger_params=dict(logger_group.get("params") or {}),
         checkpoint=cfg.checkpoint,
         output=str(cfg.predictions),
+        augmentation=augmentation,
     )
 
 

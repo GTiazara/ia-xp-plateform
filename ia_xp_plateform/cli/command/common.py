@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 import pandas as pd
@@ -13,7 +14,13 @@ from ia_xp_plateform.data.datamodule.table_datamodule import (
     TableDataModule,
     _read_table,
 )
-from ia_xp_plateform.factory import create_datamodule, create_logger, create_model
+from ia_xp_plateform.factory import (
+    create_datamodule,
+    create_logger,
+    create_model,
+    create_preprocessing,
+)
+from ia_xp_plateform.transform.pipeline import Preprocessing
 from ia_xp_plateform.factory.logger_factory import LOGGER_DIR_KEYS
 from ia_xp_plateform.models.base import BaseModel
 
@@ -97,7 +104,61 @@ def build_datamodule(args: argparse.Namespace) -> TableDataModule:
         split_seed=getattr(args, "seed", 42),
         split_column=getattr(args, "split_column", "split"),
         num_workers=getattr(args, "num_workers", 0),
+        preprocessing=build_preprocessing(args),
     )
+
+
+def build_preprocessing(args: argparse.Namespace) -> Preprocessing | None:
+    """Pipelines décrits par la configuration, ou aucun pour le CLI argparse.
+
+    Un namespace sans `augmentation` (commande `ia-xp`) ne prétraite pas.
+    Un dictionnaire vide non plus. Le groupe `none` a quatre listes vides :
+    il construit des pipelines qui laissent les entrées intactes.
+    """
+    specs = getattr(args, "augmentation", None)
+    if not specs:
+        return None
+    return create_preprocessing(specs)
+
+
+def preprocessing_path(checkpoint: str | Path) -> Path:
+    """Fichier d'état voisin d'un checkpoint.
+
+    `best-model.ckpt` donne `best-model.preprocessing.json`, et
+    `best-model-v1.ckpt` donne `best-model-v1.preprocessing.json`.
+    """
+    return Path(checkpoint).with_suffix(".preprocessing.json")
+
+
+def save_preprocessing(path: str | Path, states: list) -> None:
+    """Écrit les états appris en JSON."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(states), encoding="utf-8")
+
+
+def load_preprocessing(path: str | Path) -> list:
+    """Relit les états appris. L'erreur nomme le fichier absent."""
+    path = Path(path)
+    if not path.is_file():
+        raise FileNotFoundError(f"État de prétraitement introuvable : {path}")
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def apply_saved_preprocessing(
+    preprocessing: Preprocessing | None,
+    checkpoint: str | Path,
+    split: str,
+) -> None:
+    """Charge l'état du checkpoint si ce split a des statistiques.
+
+    Un pipeline sans transformation à statistiques ne lit aucun fichier.
+    Un nom présent dans le pipeline et absent du fichier lève une erreur
+    qui nomme la transformation.
+    """
+    if preprocessing is None or not preprocessing.requires_state(split):
+        return
+    preprocessing.load_states(load_preprocessing(preprocessing_path(checkpoint)))
 
 
 def model_kwargs(args: argparse.Namespace, input_features: int) -> dict:

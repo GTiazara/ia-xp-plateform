@@ -31,6 +31,7 @@ class TableDataset(BaseDataset):
         dataframe: pd.DataFrame,
         target_columns: str | list[str],
         feature_columns: list[str] | None = None,
+        transform=None,
     ) -> None:
         """Sépare le tableau en entrées (`x`) et cible (`y`).
 
@@ -45,6 +46,9 @@ class TableDataset(BaseDataset):
         feature_columns : list[str] | None, optional
             Colonnes à utiliser comme entrées (`x`). Par défaut (`None`),
             toutes les colonnes du tableau sauf `target_columns`.
+        transform : callable | None, optional
+            Prétraitement appliqué à chaque entrée à la lecture. La cible
+            n'est pas transformée.
         """
         # On uniformise `target_columns` en liste : cela permet de la
         # retirer de la liste des colonnes et de traiter une ou plusieurs
@@ -75,4 +79,4 @@ class TableDataset(BaseDataset):
             dataframe[target_columns].to_numpy(dtype="float32", copy=True)
         )
 
-        super().__init__(x, y)
+        super().__init__(x, y, transform=transform)
